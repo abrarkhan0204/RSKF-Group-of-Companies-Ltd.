@@ -1,0 +1,369 @@
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Status Update
+if (isset($_GET['status']) && isset($_GET['id'])) {
+    $id     = (int)$_GET['id'];
+    $status = mysqli_real_escape_string($conn, $_GET['status']);
+    mysqli_query($conn, "UPDATE orders SET payment_status='$status' WHERE id=$id");
+    header("Location: orders.php?success=updated");
+    exit();
+}
+
+// Add Order
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_order'])) {
+    $customer_id    = (int)$_POST['customer_id'];
+    $order_date     = $_POST['order_date'];
+    $payment_status = $_POST['payment_status'];
+    $notes          = mysqli_real_escape_string($conn, $_POST['notes']);
+    $product_ids    = $_POST['product_id'];
+    $quantities     = $_POST['quantity'];
+    $prices         = $_POST['price'];
+
+    $total = 0;
+    foreach ($quantities as $key => $qty) {
+        $total += $qty * $prices[$key];
+    }
+
+    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status, notes)
+                         VALUES ('$customer_id','$order_date','$total','$payment_status','$notes')");
+    $order_id = mysqli_insert_id($conn);
+
+    foreach ($product_ids as $key => $prod_id) {
+        $qty      = (int)$quantities[$key];
+        $price    = (float)$prices[$key];
+        $subtotal = $qty * $price;
+        $prod_id  = (int)$prod_id;
+        mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
+                             VALUES ('$order_id','$prod_id','$qty','$price','$subtotal')");
+        mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $qty WHERE id=$prod_id");
+    }
+
+    header("Location: orders.php?success=added");
+    exit();
+}
+
+$filter   = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+$where    = $filter != 'all' ? "WHERE o.payment_status='$filter'" : "";
+$orders   = mysqli_query($conn, "SELECT o.*, c.full_name as customer_name
+                                  FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
+                                  $where ORDER BY o.id DESC");
+$total_orders    = mysqli_num_rows($orders);
+$count_all       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
+$count_pending   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='pending'"))[0];
+$count_paid      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='paid'"))[0];
+$count_delivered = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='delivered'"))[0];
+$count_cancelled = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='cancelled'"))[0];
+$customers = mysqli_query($conn, "SELECT * FROM customers ORDER BY full_name ASC");
+$products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RSKF — Orders</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0f0f0f; color:white; display:flex; }
+    .sidebar { width:260px; min-height:100vh; background:#1a1a1a; position:fixed; top:0; left:0; border-right:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo h2 { font-size:16px; font-weight:700; line-height:1.4; }
+    .sidebar .logo span { color:#c0392b; }
+    .sidebar .logo p { font-size:11px; color:rgba(255,255,255,0.4); margin-top:4px; }
+    .sidebar .admin-box { padding:16px 24px; background:rgba(192,57,43,0.08); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:12px; }
+    .admin-box .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#c0392b,#7b0000); display:flex; align-items:center; justify-content:center; font-size:16px; }
+    .admin-box .info .name { font-size:13px; font-weight:600; }
+    .admin-box .info .role { font-size:11px; color:rgba(255,255,255,0.4); }
+    .sidebar nav { padding:12px 0; }
+    .sidebar nav .section-title { padding:14px 24px 6px; font-size:10px; text-transform:uppercase; color:rgba(255,255,255,0.3); letter-spacing:1.5px; }
+    .sidebar nav a { display:flex; align-items:center; gap:10px; padding:12px 24px; color:rgba(255,255,255,0.6); text-decoration:none; font-size:13px; border-left:3px solid transparent; transition:all 0.2s; }
+    .sidebar nav a:hover { background:rgba(255,255,255,0.05); color:white; border-left-color:rgba(192,57,43,0.5); }
+    .sidebar nav a.active { background:rgba(192,57,43,0.12); color:white; border-left-color:#c0392b; }
+    .main { margin-left:260px; flex:1; padding:35px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; opacity:0; animation:fadeDown 0.6s ease 0.1s forwards; }
+    .topbar h1 { font-size:24px; font-weight:700; }
+    .topbar p  { font-size:13px; color:rgba(255,255,255,0.4); margin-top:3px; }
+    .success-msg { background:rgba(39,174,96,0.12); border:1px solid rgba(39,174,96,0.3); color:#2ecc71; padding:12px 16px; border-radius:8px; margin-bottom:22px; font-size:13px; opacity:0; animation:fadeDown 0.5s ease forwards; }
+    .form-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:25px; margin-bottom:25px; opacity:0; animation:fadeUp 0.6s ease 0.2s forwards; }
+    .form-box h3 { font-size:15px; font-weight:600; color:white; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .form-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin-bottom:20px; }
+    .form-grid label { display:block; font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width:100%; padding:11px 14px;
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+      border-radius:8px; font-size:13px; color:white; transition:all 0.3s;
+    }
+    .form-grid select option { background:#1a1a1a; }
+    .form-grid input::placeholder, .form-grid textarea::placeholder { color:rgba(255,255,255,0.2); }
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus { outline:none; border-color:#c0392b; background:rgba(255,255,255,0.08); }
+    .span3 { grid-column:span 3; }
+    .item-row { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:10px; margin-bottom:10px; align-items:end; }
+    .item-row label { display:block; font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:6px; text-transform:uppercase; }
+    .item-row input, .item-row select { width:100%; padding:10px 12px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:8px; font-size:13px; color:white; }
+    .item-row select option { background:#1a1a1a; }
+    .btn-remove { background:rgba(231,76,60,0.15); color:#e74c3c; border:1px solid rgba(231,76,60,0.2); border-radius:8px; padding:10px 14px; cursor:pointer; font-size:14px; }
+    .btn-add-row { background:rgba(39,174,96,0.12); color:#2ecc71; border:1px solid rgba(39,174,96,0.2); border-radius:8px; padding:9px 18px; cursor:pointer; font-size:13px; margin-bottom:15px; transition:all 0.2s; }
+    .btn-add-row:hover { background:rgba(39,174,96,0.2); }
+    .total-display { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:13px 18px; margin-bottom:15px; font-size:15px; color:rgba(255,255,255,0.6); }
+    .total-display span { font-weight:800; color:#c0392b; font-size:20px; }
+    .btn-add { background:linear-gradient(135deg,#c0392b,#e74c3c); color:white; padding:11px 28px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s; }
+    .btn-add:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(192,57,43,0.4); }
+
+    /* Filter Tabs */
+    .filter-tabs { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; opacity:0; animation:fadeUp 0.6s ease 0.25s forwards; }
+    .filter-tab { padding:8px 18px; border-radius:20px; font-size:13px; text-decoration:none; color:rgba(255,255,255,0.5); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); transition:all 0.2s; }
+    .filter-tab:hover { border-color:rgba(192,57,43,0.5); color:white; }
+    .filter-tab.active { background:rgba(192,57,43,0.2); color:white; border-color:#c0392b; }
+    .filter-tab .count { background:rgba(255,255,255,0.1); padding:1px 8px; border-radius:10px; font-size:11px; margin-left:5px; }
+
+    .table-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:25px; opacity:0; animation:fadeUp 0.6s ease 0.3s forwards; }
+    .table-box h3 { font-size:15px; font-weight:600; color:white; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-between; align-items:center; }
+    .total-badge { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); padding:3px 12px; border-radius:20px; font-size:12px; font-weight:400; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    table th { text-align:left; padding:10px 12px; color:rgba(255,255,255,0.3); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    table td { padding:12px 12px; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(255,255,255,0.75); vertical-align:middle; }
+    table tr:last-child td { border-bottom:none; }
+    table tr:hover td { background:rgba(255,255,255,0.03); }
+    .badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge.paid      { background:rgba(39,174,96,0.15); color:#2ecc71; }
+    .badge.pending   { background:rgba(243,156,18,0.15); color:#f39c12; }
+    .badge.partial   { background:rgba(41,128,185,0.15); color:#3498db; }
+    .badge.delivered { background:rgba(26,188,156,0.15); color:#1abc9c; }
+    .badge.cancelled { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.3); }
+    .status-btns { display:flex; gap:5px; flex-wrap:wrap; }
+    .s-btn { padding:4px 10px; border:none; border-radius:5px; cursor:pointer; font-size:11px; text-decoration:none; font-weight:600; transition:all 0.2s; }
+    .s-paid      { background:rgba(39,174,96,0.15); color:#2ecc71; border:1px solid rgba(39,174,96,0.2); }
+    .s-partial   { background:rgba(41,128,185,0.15); color:#3498db; border:1px solid rgba(41,128,185,0.2); }
+    .s-pending   { background:rgba(243,156,18,0.15); color:#f39c12; border:1px solid rgba(243,156,18,0.2); }
+    .s-delivered { background:rgba(26,188,156,0.15); color:#1abc9c; border:1px solid rgba(26,188,156,0.2); }
+    .s-cancelled { background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.3); border:1px solid rgba(255,255,255,0.08); }
+    .s-btn:hover { opacity:0.8; transform:translateY(-1px); }
+    .empty { text-align:center; padding:40px; color:rgba(255,255,255,0.2); font-size:14px; }
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">
+    <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
+    <p>Admin Panel</p>
+  </div>
+  <div class="admin-box">
+    <div class="avatar">👑</div>
+    <div class="info">
+      <div class="name"><?php echo $_SESSION['full_name']; ?></div>
+      <div class="role"><?php echo ucfirst($_SESSION['role']); ?></div>
+    </div>
+  </div>
+  <nav>
+    <div class="section-title">Main</div>
+    <a href="dashboard.php">📊 Dashboard</a>
+    <div class="section-title">Manage</div>
+    <a href="customers.php">👥 Customers</a>
+    <a href="orders.php" class="active">🧾 Orders</a>
+    <a href="products.php">📦 Products</a>
+    <a href="purchases.php">📤 Purchase Orders</a>
+    <a href="suppliers.php">🏭 Suppliers</a>
+    <a href="employees.php">👷 Employees</a>
+    <div class="section-title">Account</div>
+    <a href="logout.php">🚪 Logout</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1>Orders</h1>
+      <p>Manage and track all customer orders</p>
+    </div>
+  </div>
+
+  <?php if (isset($_GET['success'])): ?>
+    <div class="success-msg">
+      <?php
+        if ($_GET['success'] == 'added')   echo '✅ Order placed successfully!';
+        if ($_GET['success'] == 'updated') echo '✅ Order status updated!';
+      ?>
+    </div>
+  <?php endif; ?>
+
+  <!-- Add Order Form -->
+  <div class="form-box">
+    <h3>Place New Order</h3>
+    <form method="POST" id="orderForm">
+      <div class="form-grid">
+        <div>
+          <label>Customer *</label>
+          <select name="customer_id" required>
+            <option value="">-- Select Customer --</option>
+            <?php while ($c = mysqli_fetch_assoc($customers)) {
+                echo "<option value='{$c['id']}'>{$c['full_name']}</option>";
+            } ?>
+          </select>
+        </div>
+        <div>
+          <label>Order Date *</label>
+          <input type="date" name="order_date" value="<?php echo date('Y-m-d'); ?>" required>
+        </div>
+        <div>
+          <label>Payment Status</label>
+          <select name="payment_status">
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="partial">Partial</option>
+          </select>
+        </div>
+        <div class="span3">
+          <label>Notes</label>
+          <textarea name="notes" rows="2" placeholder="Delivery address, instructions..."></textarea>
+        </div>
+      </div>
+
+      <div id="items-container">
+        <div class="item-row">
+          <div>
+            <label>Product *</label>
+            <select name="product_id[]" class="product-select" onchange="updatePrice(this)" required>
+              <option value="">-- Select Product --</option>
+              <?php
+              mysqli_data_seek($products, 0);
+              while ($p = mysqli_fetch_assoc($products)) {
+                  echo "<option value='{$p['id']}' data-price='{$p['price_per_unit']}'>
+                          {$p['name']} (Rs.".number_format($p['price_per_unit'],0)." / {$p['unit']})
+                        </option>";
+              }
+              ?>
+            </select>
+          </div>
+          <div>
+            <label>Quantity *</label>
+            <input type="number" name="quantity[]" class="qty-input" placeholder="1" min="1" onchange="calculateTotal()" required>
+          </div>
+          <div>
+            <label>Price (Rs.)</label>
+            <input type="number" name="price[]" class="price-input" placeholder="0" step="0.01" onchange="calculateTotal()" readonly>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="btn-add-row" onclick="addRow()">+ Add Product</button>
+      <div class="total-display">Total: <span id="grand-total">Rs. 0</span></div>
+      <button type="submit" name="add_order" class="btn-add">Place Order</button>
+    </form>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="filter-tabs">
+    <a href="orders.php?filter=all"       class="filter-tab <?php echo $filter=='all'?'active':''; ?>">All <span class="count"><?php echo $count_all; ?></span></a>
+    <a href="orders.php?filter=pending"   class="filter-tab <?php echo $filter=='pending'?'active':''; ?>">⏳ Pending <span class="count"><?php echo $count_pending; ?></span></a>
+    <a href="orders.php?filter=paid"      class="filter-tab <?php echo $filter=='paid'?'active':''; ?>">✅ Paid <span class="count"><?php echo $count_paid; ?></span></a>
+    <a href="orders.php?filter=delivered" class="filter-tab <?php echo $filter=='delivered'?'active':''; ?>">🚚 Delivered <span class="count"><?php echo $count_delivered; ?></span></a>
+    <a href="orders.php?filter=cancelled" class="filter-tab <?php echo $filter=='cancelled'?'active':''; ?>">❌ Cancelled <span class="count"><?php echo $count_cancelled; ?></span></a>
+  </div>
+
+  <!-- Orders Table -->
+  <div class="table-box">
+    <h3>Orders <span class="total-badge"><?php echo $total_orders; ?> records</span></h3>
+    <table>
+      <tr>
+        <th>#</th><th>Order ID</th><th>Customer</th>
+        <th>Date</th><th>Amount</th><th>Status</th><th>Update</th>
+      </tr>
+      <?php
+      $i = 1;
+      if (mysqli_num_rows($orders) == 0) {
+          echo "<tr><td colspan='7' class='empty'>No orders found</td></tr>";
+      }
+      while ($row = mysqli_fetch_assoc($orders)):
+          $s = $row['payment_status'];
+      ?>
+      <tr>
+        <td><?php echo $i; ?></td>
+        <td><strong>ORD-<?php echo $row['id']; ?></strong></td>
+        <td><?php echo $row['customer_name']; ?></td>
+        <td><?php echo $row['order_date']; ?></td>
+        <td>Rs. <?php echo number_format($row['total_amount'],0); ?></td>
+        <td><span class="badge <?php echo $s; ?>"><?php echo ucfirst($s); ?></span></td>
+        <td>
+          <div class="status-btns">
+            <?php if ($s == 'pending'): ?>
+              <a href="orders.php?status=partial&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-partial" onclick="return confirm('Mark as Partial Payment?')">🔄 Partial</a>
+              <a href="orders.php?status=paid&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-paid" onclick="return confirm('Mark as Paid?')">✅ Paid</a>
+              <a href="orders.php?status=cancelled&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-cancelled" onclick="return confirm('Cancel this order?')">❌ Cancel</a>
+
+            <?php elseif ($s == 'partial'): ?>
+              <a href="orders.php?status=paid&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-paid" onclick="return confirm('Mark as Fully Paid?')">✅ Paid</a>
+              <a href="orders.php?status=delivered&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-delivered" onclick="return confirm('Mark as Delivered?')">🚚 Delivered</a>
+              <a href="orders.php?status=cancelled&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-cancelled" onclick="return confirm('Cancel?')">❌ Cancel</a>
+
+            <?php elseif ($s == 'paid'): ?>
+              <a href="orders.php?status=delivered&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-delivered" onclick="return confirm('Mark as Delivered?')">🚚 Delivered</a>
+              <a href="orders.php?status=cancelled&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-cancelled" onclick="return confirm('Cancel?')">❌ Cancel</a>
+
+            <?php elseif ($s == 'delivered'): ?>
+              <span class="badge delivered">🚚 Delivered</span>
+              <a href="orders.php?status=cancelled&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-cancelled" onclick="return confirm('Cancel this delivered order?')">❌ Cancel</a>
+
+            <?php elseif ($s == 'cancelled'): ?>
+              <span class="badge cancelled">❌ Cancelled</span>
+              <a href="orders.php?status=pending&id=<?php echo $row['id']; ?>"
+                 class="s-btn s-pending" onclick="return confirm('Restore to Pending?')">↩️ Restore</a>
+            <?php endif; ?>
+          </div>
+        </td>
+      </tr>
+      <?php $i++; endwhile; ?>
+    </table>
+  </div>
+</div>
+
+<script>
+function updatePrice(select) {
+    const row   = select.closest('.item-row');
+    const price = select.options[select.selectedIndex].dataset.price || 0;
+    row.querySelector('.price-input').value = price;
+    calculateTotal();
+}
+function calculateTotal() {
+    const qtys = document.querySelectorAll('.qty-input');
+    const prices = document.querySelectorAll('.price-input');
+    let total = 0;
+    qtys.forEach((qty, i) => { total += (parseFloat(qty.value)||0) * (parseFloat(prices[i].value)||0); });
+    document.getElementById('grand-total').textContent = 'Rs. ' + total.toLocaleString('en-PK');
+}
+function addRow() {
+    const container = document.getElementById('items-container');
+    const newRow    = container.querySelector('.item-row').cloneNode(true);
+    newRow.querySelectorAll('input').forEach(i => i.value = '');
+    newRow.querySelector('select').selectedIndex = 0;
+    newRow.querySelector('.product-select').onchange = function() { updatePrice(this); };
+    newRow.querySelector('.qty-input').onchange   = calculateTotal;
+    newRow.querySelector('.price-input').onchange = calculateTotal;
+    container.appendChild(newRow);
+}
+function removeRow(btn) {
+    const rows = document.querySelectorAll('.item-row');
+    if (rows.length > 1) { btn.closest('.item-row').remove(); calculateTotal(); }
+}
+</script>
+</body>
+</html>

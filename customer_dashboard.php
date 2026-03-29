@@ -1,0 +1,300 @@
+<?php
+session_start();
+if (!isset($_SESSION['customer_id'])) {
+    header("Location: customer_login.php");
+    exit();
+}
+include 'db.php';
+
+$customer_id = $_SESSION['customer_id'];
+
+// Order Place
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['place_order'])) {
+    $product_id = (int)$_POST['product_id'];
+    $quantity   = (int)$_POST['quantity'];
+    $prod = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM products WHERE id=$product_id"));
+    $subtotal = $prod['price_per_unit'] * $quantity;
+    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status)
+                         VALUES ('$customer_id','".date('Y-m-d')."','$subtotal','pending')");
+    $order_id = mysqli_insert_id($conn);
+    mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
+                         VALUES ('$order_id','$product_id','$quantity','{$prod['price_per_unit']}','$subtotal')");
+    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $quantity WHERE id=$product_id");
+    header("Location: customer_dashboard.php?success=1");
+    exit();
+}
+
+$customer     = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM customers WHERE id=$customer_id"));
+$total_orders = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id"))[0];
+$spent        = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_amount) FROM orders WHERE customer_id=$customer_id"))[0];
+$pending      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id AND payment_status='pending'"))[0];
+$orders       = mysqli_query($conn, "SELECT * FROM orders WHERE customer_id=$customer_id ORDER BY id DESC");
+$products     = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RSKF — Customer Portal</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0f0f0f; color:white; display:flex; }
+
+    .sidebar {
+      width:260px; min-height:100vh; background:#1a1a1a;
+      position:fixed; top:0; left:0;
+      border-right:1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar .logo { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo h2 { font-size:16px; font-weight:700; line-height:1.4; }
+    .sidebar .logo span { color:#c0392b; }
+    .sidebar .logo p { font-size:11px; color:rgba(255,255,255,0.4); margin-top:4px; }
+    .sidebar .user-box {
+      padding:16px 24px; background:rgba(192,57,43,0.08);
+      border-bottom:1px solid rgba(255,255,255,0.06);
+      display:flex; align-items:center; gap:12px;
+    }
+    .user-box .avatar {
+      width:42px; height:42px; border-radius:50%;
+      background:linear-gradient(135deg,#c0392b,#7b0000);
+      display:flex; align-items:center; justify-content:center; font-size:18px;
+    }
+    .user-box .info .name { font-size:13px; font-weight:600; }
+    .user-box .info .role { font-size:11px; color:rgba(255,255,255,0.4); }
+    .sidebar nav { padding:12px 0; }
+    .sidebar nav .section-title { padding:14px 24px 6px; font-size:10px; text-transform:uppercase; color:rgba(255,255,255,0.3); letter-spacing:1.5px; }
+    .sidebar nav a { display:flex; align-items:center; gap:10px; padding:12px 24px; color:rgba(255,255,255,0.6); text-decoration:none; font-size:13px; border-left:3px solid transparent; transition:all 0.2s; }
+    .sidebar nav a:hover { background:rgba(255,255,255,0.05); color:white; border-left-color:rgba(192,57,43,0.5); }
+    .sidebar nav a.active { background:rgba(192,57,43,0.12); color:white; border-left-color:#c0392b; }
+
+    .main { margin-left:260px; flex:1; padding:35px; min-height:100vh; }
+
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:35px; opacity:0; animation:fadeDown 0.6s ease 0.1s forwards; }
+    .topbar h1 { font-size:24px; font-weight:700; }
+    .topbar p  { font-size:13px; color:rgba(255,255,255,0.4); margin-top:3px; }
+    .date-badge { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); padding:8px 16px; border-radius:8px; font-size:13px; color:rgba(255,255,255,0.6); }
+
+    .success-banner { background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.3); border-radius:10px; padding:14px 20px; margin-bottom:25px; font-size:14px; color:#2ecc71; opacity:0; animation:fadeDown 0.5s ease forwards; }
+
+    /* Cards */
+    .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:25px; }
+    .card { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:22px; opacity:0; animation:fadeUp 0.6s ease forwards; transition:transform 0.2s; }
+    .card:hover { transform:translateY(-3px); }
+    .card:nth-child(1) { animation-delay:0.1s; }
+    .card:nth-child(2) { animation-delay:0.2s; }
+    .card:nth-child(3) { animation-delay:0.3s; }
+    .card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; }
+    .card-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+    .icon-red    { background:rgba(192,57,43,0.2); }
+    .icon-green  { background:rgba(39,174,96,0.2); }
+    .icon-orange { background:rgba(243,156,18,0.2); }
+    .card-num   { font-size:28px; font-weight:800; }
+    .card-label { font-size:12px; color:rgba(255,255,255,0.4); margin-top:4px; }
+
+    /* Section Box */
+    .section-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:24px; margin-bottom:22px; opacity:0; animation:fadeUp 0.6s ease 0.4s forwards; }
+    .section-box h3 { font-size:15px; font-weight:600; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-between; align-items:center; }
+    .section-box h3 span { font-size:12px; color:rgba(255,255,255,0.3); font-weight:400; }
+
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    table th { text-align:left; padding:8px 10px; color:rgba(255,255,255,0.3); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    table td { padding:11px 10px; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(255,255,255,0.75); }
+    table tr:last-child td { border-bottom:none; }
+    table tr:hover td { background:rgba(255,255,255,0.03); }
+
+    .badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge.paid      { background:rgba(39,174,96,0.15); color:#2ecc71; }
+    .badge.pending   { background:rgba(243,156,18,0.15); color:#f39c12; }
+    .badge.partial   { background:rgba(41,128,185,0.15); color:#3498db; }
+    .badge.delivered { background:rgba(26,188,156,0.15); color:#1abc9c; }
+
+    /* Products Grid */
+    .products-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+    .product-card { background:#222; border:1px solid rgba(255,255,255,0.06); border-radius:10px; overflow:hidden; transition:all 0.3s; }
+    .product-card:hover { transform:translateY(-4px); border-color:rgba(192,57,43,0.4); }
+    .product-top { height:100px; display:flex; align-items:center; justify-content:center; font-size:44px; background:linear-gradient(135deg,#1a1a1a,#2a2a2a); }
+    .product-body { padding:15px; }
+    .product-cat  { font-size:10px; color:#c0392b; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+    .product-name { font-size:13px; font-weight:600; margin-bottom:8px; color:white; }
+    .product-price { font-size:18px; font-weight:800; color:#c0392b; }
+    .product-unit  { font-size:11px; color:rgba(255,255,255,0.3); margin-bottom:8px; }
+    .stock-ok  { font-size:11px; color:#2ecc71; background:rgba(39,174,96,0.1); padding:2px 8px; border-radius:10px; display:inline-block; margin-bottom:12px; }
+    .stock-low { font-size:11px; color:#e74c3c; background:rgba(231,76,60,0.1); padding:2px 8px; border-radius:10px; display:inline-block; margin-bottom:12px; }
+    .order-form { border-top:1px solid rgba(255,255,255,0.06); padding-top:12px; }
+    .order-form label { font-size:11px; color:rgba(255,255,255,0.4); display:block; margin-bottom:5px; }
+    .qty-row { display:flex; gap:8px; }
+    .qty-row input { width:65px; padding:8px 10px; background:#333; border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:white; font-size:13px; }
+    .btn-order { flex:1; background:#c0392b; color:white; border:none; padding:8px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:600; transition:background 0.2s; }
+    .btn-order:hover { background:#e74c3c; }
+    .btn-order:disabled { background:#333; color:rgba(255,255,255,0.3); cursor:not-allowed; }
+
+    /* Profile Grid */
+    .profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .profile-item label { font-size:11px; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px; }
+    .profile-item p { font-size:14px; color:white; font-weight:500; }
+
+    .empty { text-align:center; padding:30px; color:rgba(255,255,255,0.2); font-size:14px; }
+    .footer { text-align:center; font-size:12px; color:rgba(255,255,255,0.2); margin-top:25px; }
+
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
+    <p>Customer Portal</p>
+  </div>
+  <div class="user-box">
+    <div class="avatar">👤</div>
+    <div class="info">
+      <div class="name"><?php echo $_SESSION['customer_name']; ?></div>
+      <div class="role">Customer Account</div>
+    </div>
+  </div>
+  <nav>
+    <div class="section-title">Menu</div>
+    <a href="#top" class="active">🏠 Dashboard</a>
+    <a href="#orders">🧾 My Orders</a>
+    <a href="#catalogue">📦 Products</a>
+    <a href="#profile">👤 My Profile</a>
+    <div class="section-title">Account</div>
+    <a href="customer_logout.php">🚪 Logout</a>
+  </nav>
+</div>
+
+<div class="main" id="top">
+  <div class="topbar">
+    <div>
+      <h1>Welcome back, <?php echo $_SESSION['customer_name']; ?>!</h1>
+      <p>Here's your account overview for today.</p>
+    </div>
+    <div class="date-badge">📅 <?php echo date('l, d F Y'); ?></div>
+  </div>
+
+  <?php if (isset($_GET['success'])): ?>
+    <div class="success-banner">✅ Order placed successfully! Our team will contact you soon.</div>
+  <?php endif; ?>
+
+  <!-- Stats -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-top">
+        <div><div class="card-num counter" data-target="<?php echo $total_orders; ?>">0</div><div class="card-label">Total Orders</div></div>
+        <div class="card-icon icon-red">🧾</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-top">
+        <div><div class="card-num">Rs. <?php echo number_format($spent ?? 0, 0); ?></div><div class="card-label">Total Spent</div></div>
+        <div class="card-icon icon-green">💰</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-top">
+        <div><div class="card-num counter" data-target="<?php echo $pending; ?>">0</div><div class="card-label">Pending Payments</div></div>
+        <div class="card-icon icon-orange">⏳</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders -->
+  <div class="section-box" id="orders">
+    <h3>My Orders <span><?php echo $total_orders; ?> total</span></h3>
+    <table>
+      <tr><th>#</th><th>Order ID</th><th>Date</th><th>Amount</th><th>Status</th></tr>
+      <?php
+      $i = 1;
+      if (mysqli_num_rows($orders) == 0) {
+          echo "<tr><td colspan='5' class='empty'>No orders yet — place your first order below!</td></tr>";
+      }
+      while ($row = mysqli_fetch_assoc($orders)) {
+          $s = $row['payment_status'];
+          echo "<tr>
+            <td>{$i}</td>
+            <td><strong>ORD-{$row['id']}</strong></td>
+            <td>{$row['order_date']}</td>
+            <td>Rs. ".number_format($row['total_amount'],0)."</td>
+            <td><span class='badge {$s}'>".ucfirst($s)."</span></td>
+          </tr>";
+          $i++;
+      }
+      ?>
+    </table>
+  </div>
+
+  <!-- Products Catalogue -->
+  <div class="section-box" id="catalogue">
+    <h3>Product Catalogue <span>Place your order</span></h3>
+    <div class="products-grid">
+      <?php
+      $icons = ['Cement'=>'🏗️','Steel'=>'⚙️','Bricks'=>'🧱','Sand & Gravel'=>'🪨','Pipes & Fittings'=>'🔧','Paint & Chemical'=>'🎨'];
+      while ($p = mysqli_fetch_assoc($products)):
+          $icon     = $icons[$p['cat']] ?? '📦';
+          $disabled = $p['stock_quantity'] <= 0 ? 'disabled' : '';
+          $stock_badge = $p['stock_quantity'] > 0
+              ? "<span class='stock-ok'>In Stock ({$p['stock_quantity']})</span>"
+              : "<span class='stock-low'>Out of Stock</span>";
+      ?>
+      <div class="product-card">
+        <div class="product-top"><?php echo $icon; ?></div>
+        <div class="product-body">
+          <div class="product-cat"><?php echo $p['cat']; ?></div>
+          <div class="product-name"><?php echo $p['name']; ?></div>
+          <div class="product-price">Rs. <?php echo number_format($p['price_per_unit'],0); ?></div>
+          <div class="product-unit">per <?php echo $p['unit']; ?></div>
+          <?php echo $stock_badge; ?>
+          <div class="order-form">
+            <form method="POST">
+              <input type="hidden" name="product_id" value="<?php echo $p['id']; ?>">
+              <label>Quantity</label>
+              <div class="qty-row">
+                <input type="number" name="quantity" value="1" min="1" max="<?php echo $p['stock_quantity']; ?>" <?php echo $disabled; ?>>
+                <button type="submit" name="place_order" class="btn-order" <?php echo $disabled; ?>>
+                  <?php echo $p['stock_quantity'] > 0 ? 'Order Now' : 'Out of Stock'; ?>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <?php endwhile; ?>
+    </div>
+  </div>
+
+  <!-- Profile -->
+  <div class="section-box" id="profile">
+    <h3>My Profile</h3>
+    <div class="profile-grid">
+      <div class="profile-item"><label>Full Name</label><p><?php echo $customer['full_name']; ?></p></div>
+      <div class="profile-item"><label>Email</label><p><?php echo $customer['email'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>Phone</label><p><?php echo $customer['phone'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>City</label><p><?php echo $customer['city'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>Address</label><p><?php echo $customer['address'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>Member Since</label><p><?php echo date('d M Y', strtotime($customer['created_at'])); ?></p></div>
+    </div>
+  </div>
+
+  <div class="footer">&copy; <?php echo date('Y'); ?> RSKF Group of Companies Ltd.</div>
+</div>
+
+<script>
+function animateCounter(el) {
+    const target = parseInt(el.dataset.target);
+    if (target === 0) { el.textContent = '0'; return; }
+    const step = target / (1500 / 16);
+    let current = 0;
+    const timer = setInterval(() => {
+        current += step;
+        if (current >= target) { current = target; clearInterval(timer); }
+        el.textContent = Math.floor(current);
+    }, 16);
+}
+window.addEventListener('load', () => {
+    setTimeout(() => { document.querySelectorAll('.counter').forEach(animateCounter); }, 300);
+});
+</script>
+</body>
+</html>

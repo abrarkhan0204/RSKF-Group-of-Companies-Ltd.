@@ -1,0 +1,363 @@
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Stock Update
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_stock'])) {
+    $id          = (int)$_POST['product_id'];
+    $qty         = (int)$_POST['add_quantity'];
+    $supplier_id = (int)$_POST['supplier_id'];
+    $cost        = (float)$_POST['cost_per_unit'];
+    $date        = $_POST['purchase_date'];
+    $notes       = mysqli_real_escape_string($conn, $_POST['notes']);
+    $total_cost  = $qty * $cost;
+    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity + $qty WHERE id=$id");
+    mysqli_query($conn, "INSERT INTO purchases (supplier_id, product_id, quantity, cost_per_unit, total_cost, purchase_date, notes)
+                         VALUES ('$supplier_id','$id','$qty','$cost','$total_cost','$date','$notes')");
+    header("Location: products.php?success=stock_updated");
+    exit();
+}
+
+// Add Product
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
+    $name        = mysqli_real_escape_string($conn, $_POST['name']);
+    $category_id = (int)$_POST['category_id'];
+    $unit        = mysqli_real_escape_string($conn, $_POST['unit']);
+    $price       = (float)$_POST['price_per_unit'];
+    $stock       = (int)$_POST['stock_quantity'];
+    $reorder     = (int)$_POST['reorder_level'];
+    $description = mysqli_real_escape_string($conn, $_POST['description']);
+    mysqli_query($conn, "INSERT INTO products (name, category_id, unit, price_per_unit, stock_quantity, reorder_level, description)
+                         VALUES ('$name','$category_id','$unit','$price','$stock','$reorder','$description')");
+    header("Location: products.php?success=added");
+    exit();
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    mysqli_query($conn, "DELETE FROM products WHERE id=$id");
+    header("Location: products.php?success=deleted");
+    exit();
+}
+
+$categories     = mysqli_query($conn, "SELECT * FROM categories ORDER BY name ASC");
+$suppliers_list = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY company_name ASC");
+$products       = mysqli_query($conn, "SELECT p.*, c.name as category_name
+                                        FROM products p LEFT JOIN categories c ON p.category_id=c.id
+                                        ORDER BY p.id ASC");
+$total = mysqli_num_rows($products);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RSKF — Products</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0f0f0f; color:white; display:flex; }
+    .sidebar { width:260px; min-height:100vh; background:#1a1a1a; position:fixed; top:0; left:0; border-right:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo h2 { font-size:16px; font-weight:700; line-height:1.4; }
+    .sidebar .logo span { color:#c0392b; }
+    .sidebar .logo p { font-size:11px; color:rgba(255,255,255,0.4); margin-top:4px; }
+    .sidebar .admin-box { padding:16px 24px; background:rgba(192,57,43,0.08); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:12px; }
+    .admin-box .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#c0392b,#7b0000); display:flex; align-items:center; justify-content:center; font-size:16px; }
+    .admin-box .info .name { font-size:13px; font-weight:600; }
+    .admin-box .info .role { font-size:11px; color:rgba(255,255,255,0.4); }
+    .sidebar nav { padding:12px 0; }
+    .sidebar nav .section-title { padding:14px 24px 6px; font-size:10px; text-transform:uppercase; color:rgba(255,255,255,0.3); letter-spacing:1.5px; }
+    .sidebar nav a { display:flex; align-items:center; gap:10px; padding:12px 24px; color:rgba(255,255,255,0.6); text-decoration:none; font-size:13px; border-left:3px solid transparent; transition:all 0.2s; }
+    .sidebar nav a:hover { background:rgba(255,255,255,0.05); color:white; border-left-color:rgba(192,57,43,0.5); }
+    .sidebar nav a.active { background:rgba(192,57,43,0.12); color:white; border-left-color:#c0392b; }
+    .main { margin-left:260px; flex:1; padding:35px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; opacity:0; animation:fadeDown 0.6s ease 0.1s forwards; }
+    .topbar h1 { font-size:24px; font-weight:700; }
+    .topbar p  { font-size:13px; color:rgba(255,255,255,0.4); margin-top:3px; }
+    .success-msg { background:rgba(39,174,96,0.12); border:1px solid rgba(39,174,96,0.3); color:#2ecc71; padding:12px 16px; border-radius:8px; margin-bottom:22px; font-size:13px; opacity:0; animation:fadeDown 0.5s ease forwards; }
+    .form-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:25px; margin-bottom:25px; opacity:0; animation:fadeUp 0.6s ease 0.2s forwards; }
+    .form-box h3 { font-size:15px; font-weight:600; color:white; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .form-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; }
+    .form-grid label { display:block; font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+    .input-wrap { position:relative; }
+    .input-wrap .icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; color:rgba(255,255,255,0.25); }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width:100%; padding:11px 12px 11px 36px;
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+      border-radius:8px; font-size:13px; color:white; transition:all 0.3s;
+    }
+    .form-grid select option { background:#1a1a1a; }
+    .form-grid input::placeholder, .form-grid textarea::placeholder { color:rgba(255,255,255,0.2); }
+    .form-grid input:focus, .form-grid select:focus { outline:none; border-color:#c0392b; background:rgba(255,255,255,0.08); }
+    .span2 { grid-column:span 2; }
+    .btn-add { margin-top:15px; background:linear-gradient(135deg,#c0392b,#e74c3c); color:white; padding:11px 28px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.3s; }
+    .btn-add:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(192,57,43,0.4); }
+    .table-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:25px; opacity:0; animation:fadeUp 0.6s ease 0.3s forwards; }
+    .table-box h3 { font-size:15px; font-weight:600; color:white; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-between; align-items:center; }
+    .total-badge { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5); padding:3px 12px; border-radius:20px; font-size:12px; font-weight:400; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    table th { text-align:left; padding:10px 12px; color:rgba(255,255,255,0.3); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    table td { padding:12px 12px; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(255,255,255,0.75); vertical-align:middle; }
+    table tr:last-child td { border-bottom:none; }
+    table tr:hover td { background:rgba(255,255,255,0.03); }
+    .badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge.ok  { background:rgba(39,174,96,0.15); color:#2ecc71; }
+    .badge.low { background:rgba(243,156,18,0.15); color:#f39c12; }
+    .badge.out { background:rgba(231,76,60,0.15); color:#e74c3c; }
+    .action-btns { display:flex; gap:6px; }
+    .btn-stock  { background:rgba(41,128,185,0.15); color:#3498db; padding:5px 12px; border:1px solid rgba(41,128,185,0.2); border-radius:6px; cursor:pointer; font-size:12px; transition:all 0.2s; }
+    .btn-stock:hover  { background:rgba(41,128,185,0.25); }
+    .btn-delete { background:rgba(231,76,60,0.15); color:#e74c3c; padding:5px 12px; border:1px solid rgba(231,76,60,0.2); border-radius:6px; cursor:pointer; font-size:12px; text-decoration:none; transition:all 0.2s; }
+    .btn-delete:hover { background:rgba(231,76,60,0.25); }
+    .empty { text-align:center; padding:40px; color:rgba(255,255,255,0.2); font-size:14px; }
+
+    /* Modal */
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+    .modal-overlay.open { display:flex; }
+    .modal { background:#1a1a1a; border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:30px; width:500px; box-shadow:0 20px 60px rgba(0,0,0,0.5); animation:fadeUp 0.3s ease; }
+    .modal h3 { font-size:18px; font-weight:700; color:white; margin-bottom:5px; }
+    .modal .product-name { font-size:13px; color:#c0392b; margin-bottom:15px; font-weight:600; }
+    .current-stock { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 15px; margin-bottom:18px; font-size:13px; color:rgba(255,255,255,0.5); }
+    .current-stock span { font-weight:800; color:white; font-size:16px; }
+    .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px; }
+    .modal-grid label { display:block; font-size:11px; color:rgba(255,255,255,0.4); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+    .modal-grid input, .modal-grid select { width:100%; padding:11px 14px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:8px; font-size:13px; color:white; }
+    .modal-grid select option { background:#1a1a1a; }
+    .modal-grid input::placeholder { color:rgba(255,255,255,0.2); }
+    .modal-grid input:focus, .modal-grid select:focus { outline:none; border-color:#c0392b; }
+    .modal-grid .span2 { grid-column:span 2; }
+    .modal-btns { display:flex; gap:10px; justify-content:flex-end; }
+    .btn-confirm { background:linear-gradient(135deg,#c0392b,#e74c3c); color:white; padding:10px 24px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; transition:all 0.2s; }
+    .btn-confirm:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(192,57,43,0.4); }
+    .btn-cancel  { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.6); padding:10px 24px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; cursor:pointer; font-size:14px; transition:all 0.2s; }
+    .btn-cancel:hover { background:rgba(255,255,255,0.1); }
+
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">
+    <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
+    <p>Admin Panel</p>
+  </div>
+  <div class="admin-box">
+    <div class="avatar">👑</div>
+    <div class="info">
+      <div class="name"><?php echo $_SESSION['full_name']; ?></div>
+      <div class="role"><?php echo ucfirst($_SESSION['role']); ?></div>
+    </div>
+  </div>
+  <nav>
+    <div class="section-title">Main</div>
+    <a href="dashboard.php">📊 Dashboard</a>
+    <div class="section-title">Manage</div>
+    <a href="customers.php">👥 Customers</a>
+    <a href="orders.php">🧾 Orders</a>
+    <a href="products.php" class="active">📦 Products</a>
+    <a href="purchases.php">📤 Purchase Orders</a>
+    <a href="suppliers.php">🏭 Suppliers</a>
+    <a href="employees.php">👷 Employees</a>
+    <div class="section-title">Account</div>
+    <a href="logout.php">🚪 Logout</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1>Products & Inventory</h1>
+      <p>Manage your product catalogue and stock</p>
+    </div>
+  </div>
+
+  <?php if (isset($_GET['success'])): ?>
+    <div class="success-msg">
+      <?php
+        if ($_GET['success'] == 'added')         echo '✅ Product added successfully!';
+        elseif ($_GET['success'] == 'deleted')   echo '🗑️ Product deleted.';
+        elseif ($_GET['success'] == 'stock_updated') echo '📦 Stock updated successfully!';
+      ?>
+    </div>
+  <?php endif; ?>
+
+  <!-- Add Product -->
+  <div class="form-box">
+    <h3>Add New Product</h3>
+    <form method="POST">
+      <div class="form-grid">
+        <div class="span2">
+          <label>Product Name *</label>
+          <div class="input-wrap">
+            <span class="icon">📦</span>
+            <input type="text" name="name" placeholder="e.g. Cement 50kg Bag" required>
+          </div>
+        </div>
+        <div>
+          <label>Category *</label>
+          <div class="input-wrap">
+            <span class="icon">🏷️</span>
+            <select name="category_id" required style="padding-left:36px">
+              <option value="">-- Select --</option>
+              <?php
+              mysqli_data_seek($categories, 0);
+              while ($cat = mysqli_fetch_assoc($categories)) {
+                  echo "<option value='{$cat['id']}'>{$cat['name']}</option>";
+              }
+              ?>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label>Unit *</label>
+          <div class="input-wrap">
+            <span class="icon">📏</span>
+            <input type="text" name="unit" placeholder="Bag / Ton / Piece" required>
+          </div>
+        </div>
+        <div>
+          <label>Price Per Unit (Rs.) *</label>
+          <div class="input-wrap">
+            <span class="icon">💰</span>
+            <input type="number" name="price_per_unit" placeholder="950" step="0.01" required>
+          </div>
+        </div>
+        <div>
+          <label>Stock Quantity *</label>
+          <div class="input-wrap">
+            <span class="icon">🔢</span>
+            <input type="number" name="stock_quantity" placeholder="500" required>
+          </div>
+        </div>
+        <div>
+          <label>Reorder Level</label>
+          <div class="input-wrap">
+            <span class="icon">⚠️</span>
+            <input type="number" name="reorder_level" placeholder="50">
+          </div>
+        </div>
+        <div class="span2">
+          <label>Description</label>
+          <div class="input-wrap">
+            <span class="icon">📝</span>
+            <input type="text" name="description" placeholder="Optional details">
+          </div>
+        </div>
+      </div>
+      <button type="submit" name="add_product" class="btn-add">+ Add Product</button>
+    </form>
+  </div>
+
+  <!-- Products Table -->
+  <div class="table-box">
+    <h3>All Products <span class="total-badge"><?php echo $total; ?> total</span></h3>
+    <table>
+      <tr>
+        <th>#</th><th>Product Name</th><th>Category</th>
+        <th>Unit</th><th>Price</th><th>Stock</th><th>Status</th><th>Action</th>
+      </tr>
+      <?php
+      $i = 1;
+      if (mysqli_num_rows($products) == 0) {
+          echo "<tr><td colspan='8' class='empty'>No products found</td></tr>";
+      }
+      while ($row = mysqli_fetch_assoc($products)):
+          if ($row['stock_quantity'] == 0)
+              $status = "<span class='badge out'>Out of Stock</span>";
+          elseif ($row['stock_quantity'] <= $row['reorder_level'])
+              $status = "<span class='badge low'>Low Stock</span>";
+          else
+              $status = "<span class='badge ok'>OK</span>";
+          $pid   = (int)$row['id'];
+          $pstock= (int)$row['stock_quantity'];
+          $pname = htmlspecialchars($row['name'], ENT_QUOTES);
+      ?>
+      <tr>
+        <td><?php echo $i; ?></td>
+        <td><?php echo $row['name']; ?></td>
+        <td><?php echo $row['category_name']; ?></td>
+        <td><?php echo $row['unit']; ?></td>
+        <td>Rs. <?php echo number_format($row['price_per_unit'],2); ?></td>
+        <td><strong><?php echo $pstock; ?></strong></td>
+        <td><?php echo $status; ?></td>
+        <td>
+          <div class="action-btns">
+            <button type="button" class="btn-stock"
+              onclick="openStockModal(<?php echo $pid; ?>, '<?php echo $pname; ?>', <?php echo $pstock; ?>)">
+              📦 Stock
+            </button>
+            <a href="products.php?delete=<?php echo $pid; ?>"
+               class="btn-delete"
+               onclick="return confirm('Delete this product?')">🗑️</a>
+          </div>
+        </td>
+      </tr>
+      <?php $i++; endwhile; ?>
+    </table>
+  </div>
+</div>
+
+<!-- Stock Modal -->
+<div class="modal-overlay" id="stockModal">
+  <div class="modal">
+    <h3>📦 Update Stock</h3>
+    <div class="product-name" id="modal-product-name"></div>
+    <div class="current-stock">Current Stock: <span id="modal-current-stock">0</span> units</div>
+    <form method="POST">
+      <input type="hidden" name="product_id" id="modal-product-id">
+      <div class="modal-grid">
+        <div>
+          <label>Quantity to Add *</label>
+          <input type="number" name="add_quantity" placeholder="100" min="1" required>
+        </div>
+        <div>
+          <label>Cost Per Unit (Rs.)</label>
+          <input type="number" name="cost_per_unit" placeholder="900" step="0.01">
+        </div>
+        <div>
+          <label>Supplier</label>
+          <select name="supplier_id">
+            <option value="0">-- Select --</option>
+            <?php while ($s = mysqli_fetch_assoc($suppliers_list)) {
+                echo "<option value='{$s['id']}'>{$s['company_name']}</option>";
+            } ?>
+          </select>
+        </div>
+        <div>
+          <label>Date *</label>
+          <input type="date" name="purchase_date" value="<?php echo date('Y-m-d'); ?>" required>
+        </div>
+        <div class="span2">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="e.g. New stock received">
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button type="submit" name="update_stock" class="btn-confirm">✅ Update Stock</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openStockModal(id, name, stock) {
+    document.getElementById('modal-product-id').value         = id;
+    document.getElementById('modal-product-name').textContent = name;
+    document.getElementById('modal-current-stock').textContent= stock;
+    document.getElementById('stockModal').classList.add('open');
+}
+function closeModal() {
+    document.getElementById('stockModal').classList.remove('open');
+}
+document.getElementById('stockModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>

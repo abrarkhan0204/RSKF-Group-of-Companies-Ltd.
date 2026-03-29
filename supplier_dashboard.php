@@ -1,0 +1,315 @@
+<?php
+session_start();
+if (!isset($_SESSION['supplier_id'])) {
+    header("Location: supplier_login.php");
+    exit();
+}
+include 'db.php';
+
+$supplier_id = $_SESSION['supplier_id'];
+
+// Mark as Delivered
+if (isset($_GET['deliver']) && isset($_GET['id'])) {
+    $id = (int)$_GET['id'];
+    mysqli_query($conn, "UPDATE purchases SET status='delivered', delivery_date=CURDATE() WHERE id=$id AND supplier_id=$supplier_id");
+    header("Location: supplier_dashboard.php?success=delivered");
+    exit();
+}
+
+$supplier        = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM suppliers WHERE id=$supplier_id"));
+$total_purchases = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id"))[0];
+$total_value     = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_cost) FROM purchases WHERE supplier_id=$supplier_id"))[0];
+$pending_count   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='pending'"))[0];
+$delivered_count = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='delivered'"))[0];
+
+$pending_orders = mysqli_query($conn,
+    "SELECT pu.*, p.name as product_name, p.unit
+     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
+     WHERE pu.supplier_id=$supplier_id AND pu.status='pending'
+     ORDER BY pu.id DESC");
+
+$all_purchases = mysqli_query($conn,
+    "SELECT pu.*, p.name as product_name, p.unit
+     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
+     WHERE pu.supplier_id=$supplier_id
+     ORDER BY pu.id DESC");
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RSKF — Supplier Portal</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0f0f0f; color:white; display:flex; }
+
+    .sidebar {
+      width:260px; min-height:100vh; background:#1a1a1a;
+      position:fixed; top:0; left:0;
+      border-right:1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar .logo { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    .sidebar .logo h2 { font-size:16px; font-weight:700; line-height:1.4; }
+    .sidebar .logo span { color:#2980b9; }
+    .sidebar .logo p { font-size:11px; color:rgba(255,255,255,0.4); margin-top:4px; }
+    .sidebar .user-box {
+      padding:16px 24px; background:rgba(41,128,185,0.08);
+      border-bottom:1px solid rgba(255,255,255,0.06);
+      display:flex; align-items:center; gap:12px;
+    }
+    .user-box .avatar {
+      width:42px; height:42px; border-radius:50%;
+      background:linear-gradient(135deg,#1a5276,#2980b9);
+      display:flex; align-items:center; justify-content:center; font-size:18px;
+    }
+    .user-box .info .name { font-size:13px; font-weight:600; }
+    .user-box .info .role { font-size:11px; color:rgba(255,255,255,0.4); }
+    .sidebar nav { padding:12px 0; }
+    .sidebar nav .section-title { padding:14px 24px 6px; font-size:10px; text-transform:uppercase; color:rgba(255,255,255,0.3); letter-spacing:1.5px; }
+    .sidebar nav a { display:flex; align-items:center; gap:10px; padding:12px 24px; color:rgba(255,255,255,0.6); text-decoration:none; font-size:13px; border-left:3px solid transparent; transition:all 0.2s; }
+    .sidebar nav a:hover { background:rgba(255,255,255,0.05); color:white; border-left-color:rgba(41,128,185,0.5); }
+    .sidebar nav a.active { background:rgba(41,128,185,0.12); color:white; border-left-color:#2980b9; }
+
+    .main { margin-left:260px; flex:1; padding:35px; min-height:100vh; }
+
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:35px; opacity:0; animation:fadeDown 0.6s ease 0.1s forwards; }
+    .topbar h1 { font-size:24px; font-weight:700; }
+    .topbar p  { font-size:13px; color:rgba(255,255,255,0.4); margin-top:3px; }
+    .date-badge { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); padding:8px 16px; border-radius:8px; font-size:13px; color:rgba(255,255,255,0.6); }
+
+    .success-banner { background:rgba(39,174,96,0.15); border:1px solid rgba(39,174,96,0.3); border-radius:10px; padding:14px 20px; margin-bottom:25px; font-size:14px; color:#2ecc71; opacity:0; animation:fadeDown 0.5s ease forwards; }
+
+    .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:25px; }
+    .card { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:22px; opacity:0; animation:fadeUp 0.6s ease forwards; transition:transform 0.2s; }
+    .card:hover { transform:translateY(-3px); }
+    .card:nth-child(1) { animation-delay:0.1s; }
+    .card:nth-child(2) { animation-delay:0.2s; }
+    .card:nth-child(3) { animation-delay:0.3s; }
+    .card:nth-child(4) { animation-delay:0.4s; }
+    .card-top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .card-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+    .icon-blue   { background:rgba(41,128,185,0.2); }
+    .icon-orange { background:rgba(243,156,18,0.2); }
+    .icon-green  { background:rgba(39,174,96,0.2); }
+    .icon-teal   { background:rgba(26,188,156,0.2); }
+    .card-num   { font-size:28px; font-weight:800; margin-top:15px; }
+    .card-label { font-size:12px; color:rgba(255,255,255,0.4); margin-top:4px; }
+
+    /* Pending Alert */
+    .pending-alert {
+      background:rgba(243,156,18,0.08); border:1px solid rgba(243,156,18,0.2);
+      border-left:4px solid #f39c12; border-radius:12px;
+      padding:22px; margin-bottom:22px;
+      opacity:0; animation:fadeUp 0.6s ease 0.3s forwards;
+    }
+    .pending-alert h3 { font-size:15px; color:#f39c12; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+
+    .po-card {
+      background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+      border-radius:10px; padding:16px 20px; margin-bottom:12px;
+      display:flex; justify-content:space-between; align-items:center;
+      transition:all 0.2s;
+    }
+    .po-card:hover { background:rgba(255,255,255,0.07); border-color:rgba(41,128,185,0.3); }
+    .po-card:last-child { margin-bottom:0; }
+    .po-info h4 { font-size:14px; font-weight:600; margin-bottom:4px; }
+    .po-info p  { font-size:12px; color:rgba(255,255,255,0.4); }
+    .po-right { display:flex; align-items:center; gap:20px; }
+    .po-qty { text-align:right; }
+    .po-qty .num  { font-size:20px; font-weight:800; color:#2980b9; }
+    .po-qty .unit { font-size:11px; color:rgba(255,255,255,0.3); }
+    .btn-deliver {
+      background:linear-gradient(135deg,#1a5276,#2980b9); color:white;
+      padding:9px 20px; border:none; border-radius:8px;
+      cursor:pointer; font-size:13px; font-weight:600;
+      text-decoration:none; transition:all 0.2s; white-space:nowrap;
+    }
+    .btn-deliver:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(41,128,185,0.4); }
+
+    .all-clear { background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.2); border-radius:12px; padding:20px; text-align:center; color:#2ecc71; font-size:14px; margin-bottom:22px; }
+
+    .section-box { background:#1a1a1a; border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:24px; margin-bottom:22px; opacity:0; animation:fadeUp 0.6s ease 0.5s forwards; }
+    .section-box h3 { font-size:15px; font-weight:600; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); }
+
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    table th { text-align:left; padding:8px 10px; color:rgba(255,255,255,0.3); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    table td { padding:11px 10px; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(255,255,255,0.75); }
+    table tr:last-child td { border-bottom:none; }
+    table tr:hover td { background:rgba(255,255,255,0.03); }
+
+    .badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge.pending   { background:rgba(243,156,18,0.15); color:#f39c12; }
+    .badge.delivered { background:rgba(41,128,185,0.15); color:#3498db; }
+    .badge.received  { background:rgba(39,174,96,0.15); color:#2ecc71; }
+
+    .profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .profile-item label { font-size:11px; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px; }
+    .profile-item p { font-size:14px; color:white; font-weight:500; }
+
+    .empty { text-align:center; padding:30px; color:rgba(255,255,255,0.2); font-size:14px; }
+    .footer { text-align:center; font-size:12px; color:rgba(255,255,255,0.2); margin-top:25px; }
+
+    @keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
+    <p>Supplier Portal</p>
+  </div>
+  <div class="user-box">
+    <div class="avatar">🏭</div>
+    <div class="info">
+      <div class="name"><?php echo $_SESSION['supplier_name']; ?></div>
+      <div class="role">Supplier Account</div>
+    </div>
+  </div>
+  <nav>
+    <div class="section-title">Menu</div>
+    <a href="supplier_dashboard.php" class="active">🏠 Dashboard</a>
+    <a href="#history">📋 Purchase History</a>
+    <a href="#profile">🏭 Company Profile</a>
+    <div class="section-title">Account</div>
+    <a href="supplier_logout.php">🚪 Logout</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1>Welcome, <?php echo $_SESSION['supplier_name']; ?>!</h1>
+      <p>Manage your deliveries and purchase history.</p>
+    </div>
+    <div class="date-badge">📅 <?php echo date('l, d F Y'); ?></div>
+  </div>
+
+  <?php if (isset($_GET['success'])): ?>
+    <div class="success-banner">✅ Delivery marked! RSKF admin will confirm receipt shortly.</div>
+  <?php endif; ?>
+
+  <!-- Stats -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-top"><div class="card-icon icon-blue">📋</div></div>
+      <div class="card-num counter" data-target="<?php echo $total_purchases; ?>">0</div>
+      <div class="card-label">Total Orders</div>
+    </div>
+    <div class="card">
+      <div class="card-top"><div class="card-icon icon-orange">⏳</div></div>
+      <div class="card-num counter" data-target="<?php echo $pending_count; ?>">0</div>
+      <div class="card-label">Pending Deliveries</div>
+    </div>
+    <div class="card">
+      <div class="card-top"><div class="card-icon icon-teal">🚚</div></div>
+      <div class="card-num counter" data-target="<?php echo $delivered_count; ?>">0</div>
+      <div class="card-label">Delivered</div>
+    </div>
+    <div class="card">
+      <div class="card-top"><div class="card-icon icon-green">💰</div></div>
+      <div class="card-num">Rs. <?php echo number_format($total_value ?? 0, 0); ?></div>
+      <div class="card-label">Total Value</div>
+    </div>
+  </div>
+
+  <!-- Pending Deliveries -->
+  <?php if ($pending_count > 0): ?>
+  <div class="pending-alert">
+    <h3>⏳ Pending Deliveries (<?php echo $pending_count; ?>)</h3>
+    <?php
+    mysqli_data_seek($pending_orders, 0);
+    while ($order = mysqli_fetch_assoc($pending_orders)):
+    ?>
+    <div class="po-card">
+      <div class="po-info">
+        <h4>PO-<?php echo $order['id']; ?> — <?php echo $order['product_name']; ?></h4>
+        <p>📅 Order Date: <?php echo $order['purchase_date']; ?>
+          <?php if ($order['notes']): ?> &nbsp;|&nbsp; 📝 <?php echo $order['notes']; ?><?php endif; ?>
+        </p>
+      </div>
+      <div class="po-right">
+        <div class="po-qty">
+          <div class="num"><?php echo $order['quantity']; ?></div>
+          <div class="unit"><?php echo $order['unit']; ?></div>
+        </div>
+        <a href="supplier_dashboard.php?deliver=1&id=<?php echo $order['id']; ?>"
+           class="btn-deliver"
+           onclick="return confirm('Confirm delivery of this order?')">
+           🚚 Mark as Delivered
+        </a>
+      </div>
+    </div>
+    <?php endwhile; ?>
+  </div>
+  <?php else: ?>
+  <div class="all-clear">✅ No pending deliveries — all orders are up to date!</div>
+  <?php endif; ?>
+
+  <!-- Purchase History -->
+  <div class="section-box" id="history">
+    <h3>📋 Purchase History</h3>
+    <table>
+      <tr>
+        <th>PO ID</th>
+        <th>Product</th>
+        <th>Quantity</th>
+        <th>Total Cost</th>
+        <th>Order Date</th>
+        <th>Delivery Date</th>
+        <th>Status</th>
+      </tr>
+      <?php
+      if (mysqli_num_rows($all_purchases) == 0) {
+          echo "<tr><td colspan='7' class='empty'>No purchase history yet</td></tr>";
+      }
+      while ($row = mysqli_fetch_assoc($all_purchases)):
+      ?>
+      <tr>
+        <td><strong>PO-<?php echo $row['id']; ?></strong></td>
+        <td><?php echo $row['product_name']; ?></td>
+        <td><?php echo $row['quantity'].' '.$row['unit']; ?></td>
+        <td>Rs. <?php echo number_format($row['total_cost'],0); ?></td>
+        <td><?php echo $row['purchase_date']; ?></td>
+        <td><?php echo $row['delivery_date'] ?? '—'; ?></td>
+        <td><span class="badge <?php echo $row['status']; ?>"><?php echo ucfirst($row['status']); ?></span></td>
+      </tr>
+      <?php endwhile; ?>
+    </table>
+  </div>
+
+  <!-- Company Profile -->
+  <div class="section-box" id="profile">
+    <h3>🏭 Company Profile</h3>
+    <div class="profile-grid">
+      <div class="profile-item"><label>Company Name</label><p><?php echo $supplier['company_name']; ?></p></div>
+      <div class="profile-item"><label>Contact Person</label><p><?php echo $supplier['contact_person'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>Email</label><p><?php echo $supplier['email']; ?></p></div>
+      <div class="profile-item"><label>Phone</label><p><?php echo $supplier['phone'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>City</label><p><?php echo $supplier['city'] ?: '—'; ?></p></div>
+      <div class="profile-item"><label>Address</label><p><?php echo $supplier['address'] ?: '—'; ?></p></div>
+    </div>
+  </div>
+
+  <div class="footer">&copy; <?php echo date('Y'); ?> RSKF Group of Companies Ltd.</div>
+</div>
+
+<script>
+function animateCounter(el) {
+    const target = parseInt(el.dataset.target);
+    if (target === 0) { el.textContent = '0'; return; }
+    const step = target / (1500 / 16);
+    let current = 0;
+    const timer = setInterval(() => {
+        current += step;
+        if (current >= target) { current = target; clearInterval(timer); }
+        el.textContent = Math.floor(current);
+    }, 16);
+}
+window.addEventListener('load', () => {
+    setTimeout(() => { document.querySelectorAll('.counter').forEach(animateCounter); }, 300);
+});
+</script>
+</body>
+</html>
