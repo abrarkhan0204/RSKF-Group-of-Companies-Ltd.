@@ -1,53 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Mark as Received
-if (isset($_GET['received']) && isset($_GET['id'])) {
-    $id       = (int)$_GET['id'];
-    $purchase = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM purchases WHERE id=$id"));
-    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity + {$purchase['quantity']} WHERE id={$purchase['product_id']}");
-    mysqli_query($conn, "UPDATE purchases SET status='received' WHERE id=$id");
-    header("Location: purchases.php?success=received");
-    exit();
-}
-
-// New Purchase Order
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_purchase'])) {
-    $supplier_id = (int)$_POST['supplier_id'];
-    $product_id  = (int)$_POST['product_id'];
-    $quantity    = (int)$_POST['quantity'];
-    $cost        = (float)$_POST['cost_per_unit'];
-    $total_cost  = $quantity * $cost;
-    $date        = $_POST['purchase_date'];
-    $notes       = mysqli_real_escape_string($conn, $_POST['notes']);
-    mysqli_query($conn, "INSERT INTO purchases (supplier_id, product_id, quantity, cost_per_unit, total_cost, purchase_date, notes, status)
-                         VALUES ('$supplier_id','$product_id','$quantity','$cost','$total_cost','$date','$notes','pending')");
-    header("Location: purchases.php?success=added");
-    exit();
-}
-
-$filter   = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-$where    = $filter != 'all' ? "WHERE pu.status='$filter'" : "";
-$purchases= mysqli_query($conn,
-    "SELECT pu.*, s.company_name, p.name as product_name, p.unit
-     FROM purchases pu
-     LEFT JOIN suppliers s ON pu.supplier_id=s.id
-     LEFT JOIN products p  ON pu.product_id=p.id
-     $where ORDER BY pu.id DESC");
-
-$count_all       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases"))[0];
-$count_pending   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='pending'"))[0];
-$count_delivered = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='delivered'"))[0];
-$count_received  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='received'"))[0];
-
-$suppliers = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY company_name ASC");
-$products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -121,6 +72,58 @@ $products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT
   </style>
 </head>
 <body>
+
+
+    <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Mark as Received
+if (isset($_GET['received']) && isset($_GET['id'])) {
+    $id       = (int)$_GET['id'];
+    $purchase = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM purchases WHERE id=$id"));
+    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity + {$purchase['quantity']} WHERE id={$purchase['product_id']}");
+    mysqli_query($conn, "UPDATE purchases SET status='received' WHERE id=$id");
+    header("Location: purchases.php?success=received");
+    exit();
+}
+
+// New Purchase Order
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_purchase'])) {
+    $supplier_id = (int)$_POST['supplier_id'];
+    $product_id  = (int)$_POST['product_id'];
+    $quantity    = (int)$_POST['quantity'];
+    $cost        = (float)$_POST['cost_per_unit'];
+    $total_cost  = $quantity * $cost;
+    $date        = $_POST['purchase_date'];
+    $notes       = mysqli_real_escape_string($conn, $_POST['notes']);
+    mysqli_query($conn, "INSERT INTO purchases (supplier_id, product_id, quantity, cost_per_unit, total_cost, purchase_date, notes, status)
+                         VALUES ('$supplier_id','$product_id','$quantity','$cost','$total_cost','$date','$notes','pending')");
+    header("Location: purchases.php?success=added");
+    exit();
+}
+
+$filter   = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+$where    = $filter != 'all' ? "WHERE pu.status='$filter'" : "";
+$purchases= mysqli_query($conn,
+    "SELECT pu.*, s.company_name, p.name as product_name, p.unit
+     FROM purchases pu
+     LEFT JOIN suppliers s ON pu.supplier_id=s.id
+     LEFT JOIN products p  ON pu.product_id=p.id
+     $where ORDER BY pu.id DESC");
+
+$count_all       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases"))[0];
+$count_pending   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='pending'"))[0];
+$count_delivered = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='delivered'"))[0];
+$count_received  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE status='received'"))[0];
+
+$suppliers = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY company_name ASC");
+$products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
+?>
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
