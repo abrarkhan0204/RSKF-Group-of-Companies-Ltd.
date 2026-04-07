@@ -1,36 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Add
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_customer'])) {
-    $name         = mysqli_real_escape_string($conn, $_POST['full_name']);
-    $phone        = mysqli_real_escape_string($conn, $_POST['phone']);
-    $email        = mysqli_real_escape_string($conn, $_POST['email']);
-    $address      = mysqli_real_escape_string($conn, $_POST['address']);
-    $city         = mysqli_real_escape_string($conn, $_POST['city']);
-    $default_pass = MD5('rskf1234');
-    mysqli_query($conn, "INSERT INTO customers (full_name, phone, email, address, city, `password`)
-                         VALUES ('$name','$phone','$email','$address','$city','$default_pass')");
-    header("Location: customers.php?success=added");
-    exit();
-}
-
-// Delete
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    mysqli_query($conn, "DELETE FROM customers WHERE id=$id");
-    header("Location: customers.php?success=deleted");
-    exit();
-}
-
-$customers = mysqli_query($conn, "SELECT * FROM customers ORDER BY id ASC");
-$total     = mysqli_num_rows($customers);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,6 +56,41 @@ $total     = mysqli_num_rows($customers);
   </style>
 </head>
 <body>
+
+    <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Add
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_customer'])) {
+    $name         = mysqli_real_escape_string($conn, $_POST['full_name']);
+    $phone        = mysqli_real_escape_string($conn, $_POST['phone']);
+    $email        = mysqli_real_escape_string($conn, $_POST['email']);
+    $address      = mysqli_real_escape_string($conn, $_POST['address']);
+    $city         = mysqli_real_escape_string($conn, $_POST['city']);
+    $default_pass = MD5('rskf1234');
+    mysqli_query($conn, "INSERT INTO customers (full_name, phone, email, address, city, `password`)
+                         VALUES ('$name','$phone','$email','$address','$city','$default_pass')");
+    header("Location: customers.php?success=added");
+    exit();
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    mysqli_query($conn, "DELETE FROM customers WHERE id=$id");
+    header("Location: customers.php?success=deleted");
+    exit();
+}
+
+$customers = mysqli_query($conn, "SELECT * FROM customers ORDER BY id ASC");
+$total     = mysqli_num_rows($customers);
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
