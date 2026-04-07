@@ -1,20 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-$total_customers = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM customers"))[0];
-$total_products  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products"))[0];
-$total_employees = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM employees"))[0];
-$total_suppliers = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM suppliers"))[0];
-$total_orders    = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
-$low_stock       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products WHERE stock_quantity <= reorder_level"))[0];
-$total_revenue   = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_amount) FROM orders WHERE payment_status='paid'"))[0];
-$pending_orders  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='pending'"))[0];
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,6 +91,24 @@ $pending_orders  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM or
   </style>
 </head>
 <body>
+
+    <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+$total_customers = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM customers"))[0];
+$total_products  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products"))[0];
+$total_employees = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM employees"))[0];
+$total_suppliers = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM suppliers"))[0];
+$total_orders    = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
+$low_stock       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products WHERE stock_quantity <= reorder_level"))[0];
+$total_revenue   = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_amount) FROM orders WHERE payment_status='paid'"))[0];
+$pending_orders  = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='pending'"))[0];
+?>
 
 <div class="sidebar">
   <div class="logo">
