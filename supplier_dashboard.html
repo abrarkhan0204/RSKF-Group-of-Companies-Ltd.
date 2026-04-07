@@ -1,39 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['supplier_id'])) {
-    header("Location: supplier_login.php");
-    exit();
-}
-include 'db.php';
 
-$supplier_id = $_SESSION['supplier_id'];
-
-// Mark as Delivered
-if (isset($_GET['deliver']) && isset($_GET['id'])) {
-    $id = (int)$_GET['id'];
-    mysqli_query($conn, "UPDATE purchases SET status='delivered', delivery_date=CURDATE() WHERE id=$id AND supplier_id=$supplier_id");
-    header("Location: supplier_dashboard.php?success=delivered");
-    exit();
-}
-
-$supplier        = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM suppliers WHERE id=$supplier_id"));
-$total_purchases = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id"))[0];
-$total_value     = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_cost) FROM purchases WHERE supplier_id=$supplier_id"))[0];
-$pending_count   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='pending'"))[0];
-$delivered_count = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='delivered'"))[0];
-
-$pending_orders = mysqli_query($conn,
-    "SELECT pu.*, p.name as product_name, p.unit
-     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
-     WHERE pu.supplier_id=$supplier_id AND pu.status='pending'
-     ORDER BY pu.id DESC");
-
-$all_purchases = mysqli_query($conn,
-    "SELECT pu.*, p.name as product_name, p.unit
-     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
-     WHERE pu.supplier_id=$supplier_id
-     ORDER BY pu.id DESC");
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -155,6 +120,43 @@ $all_purchases = mysqli_query($conn,
 </head>
 <body>
 
+<?php
+session_start();
+if (!isset($_SESSION['supplier_id'])) {
+    header("Location: supplier_login.php");
+    exit();
+}
+include 'db.php';
+
+$supplier_id = $_SESSION['supplier_id'];
+
+// Mark as Delivered
+if (isset($_GET['deliver']) && isset($_GET['id'])) {
+    $id = (int)$_GET['id'];
+    mysqli_query($conn, "UPDATE purchases SET status='delivered', delivery_date=CURDATE() WHERE id=$id AND supplier_id=$supplier_id");
+    header("Location: supplier_dashboard.php?success=delivered");
+    exit();
+}
+
+$supplier        = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM suppliers WHERE id=$supplier_id"));
+$total_purchases = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id"))[0];
+$total_value     = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_cost) FROM purchases WHERE supplier_id=$supplier_id"))[0];
+$pending_count   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='pending'"))[0];
+$delivered_count = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM purchases WHERE supplier_id=$supplier_id AND status='delivered'"))[0];
+
+$pending_orders = mysqli_query($conn,
+    "SELECT pu.*, p.name as product_name, p.unit
+     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
+     WHERE pu.supplier_id=$supplier_id AND pu.status='pending'
+     ORDER BY pu.id DESC");
+
+$all_purchases = mysqli_query($conn,
+    "SELECT pu.*, p.name as product_name, p.unit
+     FROM purchases pu LEFT JOIN products p ON pu.product_id=p.id
+     WHERE pu.supplier_id=$supplier_id
+     ORDER BY pu.id DESC");
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
