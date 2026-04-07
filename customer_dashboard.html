@@ -1,36 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['customer_id'])) {
-    header("Location: customer_login.php");
-    exit();
-}
-include 'db.php';
 
-$customer_id = $_SESSION['customer_id'];
-
-// Order Place
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['place_order'])) {
-    $product_id = (int)$_POST['product_id'];
-    $quantity   = (int)$_POST['quantity'];
-    $prod = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM products WHERE id=$product_id"));
-    $subtotal = $prod['price_per_unit'] * $quantity;
-    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status)
-                         VALUES ('$customer_id','".date('Y-m-d')."','$subtotal','pending')");
-    $order_id = mysqli_insert_id($conn);
-    mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
-                         VALUES ('$order_id','$product_id','$quantity','{$prod['price_per_unit']}','$subtotal')");
-    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $quantity WHERE id=$product_id");
-    header("Location: customer_dashboard.php?success=1");
-    exit();
-}
-
-$customer     = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM customers WHERE id=$customer_id"));
-$total_orders = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id"))[0];
-$spent        = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_amount) FROM orders WHERE customer_id=$customer_id"))[0];
-$pending      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id AND payment_status='pending'"))[0];
-$orders       = mysqli_query($conn, "SELECT * FROM orders WHERE customer_id=$customer_id ORDER BY id DESC");
-$products     = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -142,6 +110,41 @@ $products     = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p L
 </head>
 <body>
 
+<?php
+session_start();
+if (!isset($_SESSION['customer_id'])) {
+    header("Location: customer_login.php");
+    exit();
+}
+include 'db.php';
+
+$customer_id = $_SESSION['customer_id'];
+
+// Order Place
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['place_order'])) {
+    $product_id = (int)$_POST['product_id'];
+    $quantity   = (int)$_POST['quantity'];
+    $prod = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM products WHERE id=$product_id"));
+    $subtotal = $prod['price_per_unit'] * $quantity;
+    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status)
+                         VALUES ('$customer_id','".date('Y-m-d')."','$subtotal','pending')");
+    $order_id = mysqli_insert_id($conn);
+    mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
+                         VALUES ('$order_id','$product_id','$quantity','{$prod['price_per_unit']}','$subtotal')");
+    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $quantity WHERE id=$product_id");
+    header("Location: customer_dashboard.php?success=1");
+    exit();
+}
+
+$customer     = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM customers WHERE id=$customer_id"));
+$total_orders = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id"))[0];
+$spent        = mysqli_fetch_row(mysqli_query($conn, "SELECT SUM(total_amount) FROM orders WHERE customer_id=$customer_id"))[0];
+$pending      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE customer_id=$customer_id AND payment_status='pending'"))[0];
+$orders       = mysqli_query($conn, "SELECT * FROM orders WHERE customer_id=$customer_id ORDER BY id DESC");
+$products     = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
+?>
+
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
