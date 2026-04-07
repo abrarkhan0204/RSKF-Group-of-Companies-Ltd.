@@ -1,26 +1,4 @@
-<?php
-session_start();
-if (isset($_SESSION['supplier_id'])) {
-    header("Location: supplier_dashboard.php");
-    exit();
-}
-include 'db.php';
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $email    = mysqli_real_escape_string($conn, $_POST['email']);
-    $password = MD5($_POST['password']);
-    $result   = mysqli_query($conn, "SELECT * FROM suppliers WHERE email='$email' AND `password`='$password'");
-    if (mysqli_num_rows($result) == 1) {
-        $supplier = mysqli_fetch_assoc($result);
-        $_SESSION['supplier_id']   = $supplier['id'];
-        $_SESSION['supplier_name'] = $supplier['company_name'];
-        header("Location: supplier_dashboard.php");
-        exit();
-    } else {
-        $error = "Invalid email or password!";
-    }
-}
-?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -124,6 +102,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   </style>
 </head>
 <body>
+<?php
+session_start();
+if (isset($_SESSION['supplier_id'])) {
+    header("Location: supplier_dashboard.php");
+    exit();
+}
+include 'db.php';
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $email    = mysqli_real_escape_string($conn, $_POST['email']);
+    $password = MD5($_POST['password']);
+    $result   = mysqli_query($conn, "SELECT * FROM suppliers WHERE email='$email' AND `password`='$password'");
+    if (mysqli_num_rows($result) == 1) {
+        $supplier = mysqli_fetch_assoc($result);
+        $_SESSION['supplier_id']   = $supplier['id'];
+        $_SESSION['supplier_name'] = $supplier['company_name'];
+        header("Location: supplier_dashboard.php");
+        exit();
+    } else {
+        $error = "Invalid email or password!";
+    }
+}
+?>
+    
 <div class="bg-animation"></div>
 <div class="login-container">
   <div class="left-panel">
