@@ -1,28 +1,4 @@
-<?php
-session_start();
-if (isset($_SESSION['user_id'])) {
-    header("Location: dashboard.php");
-    exit();
-}
-include 'db.php';
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
-    $password = MD5($_POST['password']);
-    $result   = mysqli_query($conn, "SELECT * FROM users WHERE username='$username' AND password='$password'");
-    if (mysqli_num_rows($result) == 1) {
-        $user = mysqli_fetch_assoc($result);
-        $_SESSION['user_id']   = $user['id'];
-        $_SESSION['username']  = $user['username'];
-        $_SESSION['full_name'] = $user['full_name'];
-        $_SESSION['role']      = $user['role'];
-        header("Location: dashboard.php");
-        exit();
-    } else {
-        $error = "Invalid username or password!";
-    }
-}
-?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,6 +157,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   </style>
 </head>
 <body>
+
+<?php
+session_start();
+if (isset($_SESSION['user_id'])) {
+    header("Location: dashboard.php");
+    exit();
+}
+include 'db.php';
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $username = mysqli_real_escape_string($conn, $_POST['username']);
+    $password = MD5($_POST['password']);
+    $result   = mysqli_query($conn, "SELECT * FROM users WHERE username='$username' AND password='$password'");
+    if (mysqli_num_rows($result) == 1) {
+        $user = mysqli_fetch_assoc($result);
+        $_SESSION['user_id']   = $user['id'];
+        $_SESSION['username']  = $user['username'];
+        $_SESSION['full_name'] = $user['full_name'];
+        $_SESSION['role']      = $user['role'];
+        header("Location: dashboard.php");
+        exit();
+    } else {
+        $error = "Invalid username or password!";
+    }
+}
+?>
+    
 <div class="bg-animation"></div>
 <div class="login-container">
 
