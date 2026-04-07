@@ -1,67 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Status Update
-if (isset($_GET['status']) && isset($_GET['id'])) {
-    $id     = (int)$_GET['id'];
-    $status = mysqli_real_escape_string($conn, $_GET['status']);
-    mysqli_query($conn, "UPDATE orders SET payment_status='$status' WHERE id=$id");
-    header("Location: orders.php?success=updated");
-    exit();
-}
-
-// Add Order
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_order'])) {
-    $customer_id    = (int)$_POST['customer_id'];
-    $order_date     = $_POST['order_date'];
-    $payment_status = $_POST['payment_status'];
-    $notes          = mysqli_real_escape_string($conn, $_POST['notes']);
-    $product_ids    = $_POST['product_id'];
-    $quantities     = $_POST['quantity'];
-    $prices         = $_POST['price'];
-
-    $total = 0;
-    foreach ($quantities as $key => $qty) {
-        $total += $qty * $prices[$key];
-    }
-
-    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status, notes)
-                         VALUES ('$customer_id','$order_date','$total','$payment_status','$notes')");
-    $order_id = mysqli_insert_id($conn);
-
-    foreach ($product_ids as $key => $prod_id) {
-        $qty      = (int)$quantities[$key];
-        $price    = (float)$prices[$key];
-        $subtotal = $qty * $price;
-        $prod_id  = (int)$prod_id;
-        mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
-                             VALUES ('$order_id','$prod_id','$qty','$price','$subtotal')");
-        mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $qty WHERE id=$prod_id");
-    }
-
-    header("Location: orders.php?success=added");
-    exit();
-}
-
-$filter   = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-$where    = $filter != 'all' ? "WHERE o.payment_status='$filter'" : "";
-$orders   = mysqli_query($conn, "SELECT o.*, c.full_name as customer_name
-                                  FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
-                                  $where ORDER BY o.id DESC");
-$total_orders    = mysqli_num_rows($orders);
-$count_all       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
-$count_pending   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='pending'"))[0];
-$count_paid      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='paid'"))[0];
-$count_delivered = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='delivered'"))[0];
-$count_cancelled = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='cancelled'"))[0];
-$customers = mysqli_query($conn, "SELECT * FROM customers ORDER BY full_name ASC");
-$products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -149,6 +86,72 @@ $products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT
   </style>
 </head>
 <body>
+
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Status Update
+if (isset($_GET['status']) && isset($_GET['id'])) {
+    $id     = (int)$_GET['id'];
+    $status = mysqli_real_escape_string($conn, $_GET['status']);
+    mysqli_query($conn, "UPDATE orders SET payment_status='$status' WHERE id=$id");
+    header("Location: orders.php?success=updated");
+    exit();
+}
+
+// Add Order
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_order'])) {
+    $customer_id    = (int)$_POST['customer_id'];
+    $order_date     = $_POST['order_date'];
+    $payment_status = $_POST['payment_status'];
+    $notes          = mysqli_real_escape_string($conn, $_POST['notes']);
+    $product_ids    = $_POST['product_id'];
+    $quantities     = $_POST['quantity'];
+    $prices         = $_POST['price'];
+
+    $total = 0;
+    foreach ($quantities as $key => $qty) {
+        $total += $qty * $prices[$key];
+    }
+
+    mysqli_query($conn, "INSERT INTO orders (customer_id, order_date, total_amount, payment_status, notes)
+                         VALUES ('$customer_id','$order_date','$total','$payment_status','$notes')");
+    $order_id = mysqli_insert_id($conn);
+
+    foreach ($product_ids as $key => $prod_id) {
+        $qty      = (int)$quantities[$key];
+        $price    = (float)$prices[$key];
+        $subtotal = $qty * $price;
+        $prod_id  = (int)$prod_id;
+        mysqli_query($conn, "INSERT INTO order_items (order_id, product_id, quantity, price_per_unit, subtotal)
+                             VALUES ('$order_id','$prod_id','$qty','$price','$subtotal')");
+        mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity - $qty WHERE id=$prod_id");
+    }
+
+    header("Location: orders.php?success=added");
+    exit();
+}
+
+$filter   = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+$where    = $filter != 'all' ? "WHERE o.payment_status='$filter'" : "";
+$orders   = mysqli_query($conn, "SELECT o.*, c.full_name as customer_name
+                                  FROM orders o LEFT JOIN customers c ON o.customer_id=c.id
+                                  $where ORDER BY o.id DESC");
+$total_orders    = mysqli_num_rows($orders);
+$count_all       = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
+$count_pending   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='pending'"))[0];
+$count_paid      = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='paid'"))[0];
+$count_delivered = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='delivered'"))[0];
+$count_cancelled = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders WHERE payment_status='cancelled'"))[0];
+$customers = mysqli_query($conn, "SELECT * FROM customers ORDER BY full_name ASC");
+$products  = mysqli_query($conn, "SELECT p.*, c.name as cat FROM products p LEFT JOIN categories c ON p.category_id=c.id ORDER BY p.name ASC");
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
