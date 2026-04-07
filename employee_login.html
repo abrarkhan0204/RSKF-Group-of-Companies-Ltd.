@@ -1,30 +1,4 @@
-<?php
-session_start();
-if (isset($_SESSION['employee_id'])) {
-    header("Location: employee_dashboard.php");
-    exit();
-}
-include 'db.php';
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $cnic     = mysqli_real_escape_string($conn, $_POST['cnic']);
-    $password = MD5($_POST['password']);
-    $result   = mysqli_query($conn,
-        "SELECT e.*, d.name as dept_name FROM employees e
-         LEFT JOIN departments d ON e.department_id=d.id
-         WHERE e.cnic='$cnic' AND e.`password`='$password'");
-    if (mysqli_num_rows($result) == 1) {
-        $employee = mysqli_fetch_assoc($result);
-        $_SESSION['employee_id']   = $employee['id'];
-        $_SESSION['employee_name'] = $employee['full_name'];
-        $_SESSION['employee_dept'] = $employee['dept_name'];
-        header("Location: employee_dashboard.php");
-        exit();
-    } else {
-        $error = "Invalid CNIC or password!";
-    }
-}
-?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -128,6 +102,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   </style>
 </head>
 <body>
+
+<?php
+session_start();
+if (isset($_SESSION['employee_id'])) {
+    header("Location: employee_dashboard.php");
+    exit();
+}
+include 'db.php';
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $cnic     = mysqli_real_escape_string($conn, $_POST['cnic']);
+    $password = MD5($_POST['password']);
+    $result   = mysqli_query($conn,
+        "SELECT e.*, d.name as dept_name FROM employees e
+         LEFT JOIN departments d ON e.department_id=d.id
+         WHERE e.cnic='$cnic' AND e.`password`='$password'");
+    if (mysqli_num_rows($result) == 1) {
+        $employee = mysqli_fetch_assoc($result);
+        $_SESSION['employee_id']   = $employee['id'];
+        $_SESSION['employee_name'] = $employee['full_name'];
+        $_SESSION['employee_dept'] = $employee['dept_name'];
+        header("Location: employee_dashboard.php");
+        exit();
+    } else {
+        $error = "Invalid CNIC or password!";
+    }
+}
+?>
+    
 <div class="bg-animation"></div>
 <div class="login-container">
   <div class="left-panel">
