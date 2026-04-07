@@ -1,72 +1,4 @@
-<?php
-session_start();
-include 'db.php';
 
-$error   = '';
-$success = '';
-$role    = isset($_GET['role']) ? $_GET['role'] : '';
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $role = mysqli_real_escape_string($conn, $_POST['role']);
-
-    if (!in_array($role, ['customer', 'supplier', 'employee'])) {
-        $error = "Invalid role selected!";
-    } else {
-        $name     = mysqli_real_escape_string($conn, $_POST['full_name']);
-        $email    = mysqli_real_escape_string($conn, $_POST['email']);
-        $phone    = mysqli_real_escape_string($conn, $_POST['phone'] ?? '');
-        $city     = mysqli_real_escape_string($conn, $_POST['city'] ?? '');
-        $address  = mysqli_real_escape_string($conn, $_POST['address'] ?? '');
-        $password = MD5($_POST['password']);
-        $confirm  = MD5($_POST['confirm_password']);
-
-        if (empty($name) || empty($email) || empty($_POST['password'])) {
-            $error = "Name, Email and Password are required!";
-        } elseif ($password != $confirm) {
-            $error = "Passwords do not match!";
-        } else {
-            if ($role === 'customer') {
-                $check = mysqli_query($conn, "SELECT id FROM customers WHERE email='$email'");
-                if (mysqli_num_rows($check) > 0) {
-                    $error = "This email is already registered!";
-                } else {
-                    $q = mysqli_query($conn,
-                        "INSERT INTO customers (full_name, phone, email, address, city, password)
-                         VALUES ('$name','$phone','$email','$address','$city','$password')");
-                    if ($q) $success = "customer";
-                    else $error = "Error: " . mysqli_error($conn);
-                }
-            } elseif ($role === 'supplier') {
-                $company = mysqli_real_escape_string($conn, $_POST['company_name'] ?? '');
-                if (empty($company)) {
-                    $error = "Company name is required!";
-                } else {
-                    $check = mysqli_query($conn, "SELECT id FROM suppliers WHERE email='$email'");
-                    if (mysqli_num_rows($check) > 0) {
-                        $error = "This email is already registered!";
-                    } else {
-                        $q = mysqli_query($conn,
-                            "INSERT INTO suppliers (company_name, contact_person, phone, email, password, city, address)
-                             VALUES ('$company','$name','$phone','$email','$password','$city','$address')");
-                        if ($q) $success = "supplier";
-                        else $error = "Error: " . mysqli_error($conn);
-                    }
-                }
-            } elseif ($role === 'employee') {
-                $cnic = mysqli_real_escape_string($conn, $_POST['cnic'] ?? '');
-                $check = mysqli_query($conn, "SELECT id FROM employees WHERE cnic='$cnic'");
-                if (mysqli_num_rows($check) == 0) {
-                    $error = "Your CNIC is not registered — please contact Admin!";
-                } else {
-                    $q = mysqli_query($conn, "UPDATE employees SET `password`='$password' WHERE cnic='$cnic'");
-                    if ($q) $success = "employee";
-                    else $error = "Error: " . mysqli_error($conn);
-                }
-            }
-        }
-    }
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -225,6 +157,77 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   </style>
 </head>
 <body>
+
+    <?php
+session_start();
+include 'db.php';
+
+$error   = '';
+$success = '';
+$role    = isset($_GET['role']) ? $_GET['role'] : '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $role = mysqli_real_escape_string($conn, $_POST['role']);
+
+    if (!in_array($role, ['customer', 'supplier', 'employee'])) {
+        $error = "Invalid role selected!";
+    } else {
+        $name     = mysqli_real_escape_string($conn, $_POST['full_name']);
+        $email    = mysqli_real_escape_string($conn, $_POST['email']);
+        $phone    = mysqli_real_escape_string($conn, $_POST['phone'] ?? '');
+        $city     = mysqli_real_escape_string($conn, $_POST['city'] ?? '');
+        $address  = mysqli_real_escape_string($conn, $_POST['address'] ?? '');
+        $password = MD5($_POST['password']);
+        $confirm  = MD5($_POST['confirm_password']);
+
+        if (empty($name) || empty($email) || empty($_POST['password'])) {
+            $error = "Name, Email and Password are required!";
+        } elseif ($password != $confirm) {
+            $error = "Passwords do not match!";
+        } else {
+            if ($role === 'customer') {
+                $check = mysqli_query($conn, "SELECT id FROM customers WHERE email='$email'");
+                if (mysqli_num_rows($check) > 0) {
+                    $error = "This email is already registered!";
+                } else {
+                    $q = mysqli_query($conn,
+                        "INSERT INTO customers (full_name, phone, email, address, city, password)
+                         VALUES ('$name','$phone','$email','$address','$city','$password')");
+                    if ($q) $success = "customer";
+                    else $error = "Error: " . mysqli_error($conn);
+                }
+            } elseif ($role === 'supplier') {
+                $company = mysqli_real_escape_string($conn, $_POST['company_name'] ?? '');
+                if (empty($company)) {
+                    $error = "Company name is required!";
+                } else {
+                    $check = mysqli_query($conn, "SELECT id FROM suppliers WHERE email='$email'");
+                    if (mysqli_num_rows($check) > 0) {
+                        $error = "This email is already registered!";
+                    } else {
+                        $q = mysqli_query($conn,
+                            "INSERT INTO suppliers (company_name, contact_person, phone, email, password, city, address)
+                             VALUES ('$company','$name','$phone','$email','$password','$city','$address')");
+                        if ($q) $success = "supplier";
+                        else $error = "Error: " . mysqli_error($conn);
+                    }
+                }
+            } elseif ($role === 'employee') {
+                $cnic = mysqli_real_escape_string($conn, $_POST['cnic'] ?? '');
+                $check = mysqli_query($conn, "SELECT id FROM employees WHERE cnic='$cnic'");
+                if (mysqli_num_rows($check) == 0) {
+                    $error = "Your CNIC is not registered — please contact Admin!";
+                } else {
+                    $q = mysqli_query($conn, "UPDATE employees SET `password`='$password' WHERE cnic='$cnic'");
+                    if ($q) $success = "employee";
+                    else $error = "Error: " . mysqli_error($conn);
+                }
+            }
+        }
+    }
+}
+?>
+    
 <div class="bg-animation"></div>
 <div class="wrapper">
 
