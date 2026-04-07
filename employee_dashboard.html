@@ -1,28 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['employee_id'])) {
-    header("Location: employee_login.php");
-    exit();
-}
-include 'db.php';
 
-$employee_id = $_SESSION['employee_id'];
-$employee    = mysqli_fetch_assoc(mysqli_query($conn,
-    "SELECT e.*, d.name as dept_name FROM employees e
-     LEFT JOIN departments d ON e.department_id=d.id
-     WHERE e.id=$employee_id"));
-
-// Colleagues in same department
-$colleagues = mysqli_query($conn,
-    "SELECT full_name, designation FROM employees
-     WHERE department_id={$employee['department_id']} AND id != $employee_id
-     ORDER BY full_name ASC");
-
-// Company stats (read only)
-$total_products = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products"))[0];
-$total_orders   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
-$total_customers= mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM customers"))[0];
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -140,6 +116,32 @@ $total_customers= mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM cus
 </head>
 <body>
 
+<?php
+session_start();
+if (!isset($_SESSION['employee_id'])) {
+    header("Location: employee_login.php");
+    exit();
+}
+include 'db.php';
+
+$employee_id = $_SESSION['employee_id'];
+$employee    = mysqli_fetch_assoc(mysqli_query($conn,
+    "SELECT e.*, d.name as dept_name FROM employees e
+     LEFT JOIN departments d ON e.department_id=d.id
+     WHERE e.id=$employee_id"));
+
+// Colleagues in same department
+$colleagues = mysqli_query($conn,
+    "SELECT full_name, designation FROM employees
+     WHERE department_id={$employee['department_id']} AND id != $employee_id
+     ORDER BY full_name ASC");
+
+// Company stats (read only)
+$total_products = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM products"))[0];
+$total_orders   = mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM orders"))[0];
+$total_customers= mysqli_fetch_row(mysqli_query($conn, "SELECT COUNT(*) FROM customers"))[0];
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
