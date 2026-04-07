@@ -1,43 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Add
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_employee'])) {
-    $name     = mysqli_real_escape_string($conn, $_POST['full_name']);
-    $cnic     = mysqli_real_escape_string($conn, $_POST['cnic']);
-    $email    = mysqli_real_escape_string($conn, $_POST['email']);
-    $phone    = mysqli_real_escape_string($conn, $_POST['phone']);
-    $desig    = mysqli_real_escape_string($conn, $_POST['designation']);
-    $dept_id  = (int)$_POST['department_id'];
-    $salary   = (float)$_POST['salary'];
-    $join_date= $_POST['join_date'];
-    $status   = $_POST['status'];
-    mysqli_query($conn, "INSERT INTO employees (full_name, cnic, email, phone, designation, department_id, salary, join_date, status)
-                         VALUES ('$name','$cnic','$email','$phone','$desig','$dept_id','$salary','$join_date','$status')");
-    header("Location: employees.php?success=added");
-    exit();
-}
-
-// Delete
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    mysqli_query($conn, "DELETE FROM employees WHERE id=$id");
-    header("Location: employees.php?success=deleted");
-    exit();
-}
-
-$departments = mysqli_query($conn, "SELECT * FROM departments ORDER BY name ASC");
-$employees   = mysqli_query($conn,
-    "SELECT e.*, d.name as dept_name FROM employees e
-     LEFT JOIN departments d ON e.department_id=d.id
-     ORDER BY e.id ASC");
-$total = mysqli_num_rows($employees);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,6 +61,47 @@ $total = mysqli_num_rows($employees);
   </style>
 </head>
 <body>
+
+  <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Add
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_employee'])) {
+    $name     = mysqli_real_escape_string($conn, $_POST['full_name']);
+    $cnic     = mysqli_real_escape_string($conn, $_POST['cnic']);
+    $email    = mysqli_real_escape_string($conn, $_POST['email']);
+    $phone    = mysqli_real_escape_string($conn, $_POST['phone']);
+    $desig    = mysqli_real_escape_string($conn, $_POST['designation']);
+    $dept_id  = (int)$_POST['department_id'];
+    $salary   = (float)$_POST['salary'];
+    $join_date= $_POST['join_date'];
+    $status   = $_POST['status'];
+    mysqli_query($conn, "INSERT INTO employees (full_name, cnic, email, phone, designation, department_id, salary, join_date, status)
+                         VALUES ('$name','$cnic','$email','$phone','$desig','$dept_id','$salary','$join_date','$status')");
+    header("Location: employees.php?success=added");
+    exit();
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    mysqli_query($conn, "DELETE FROM employees WHERE id=$id");
+    header("Location: employees.php?success=deleted");
+    exit();
+}
+
+$departments = mysqli_query($conn, "SELECT * FROM departments ORDER BY name ASC");
+$employees   = mysqli_query($conn,
+    "SELECT e.*, d.name as dept_name FROM employees e
+     LEFT JOIN departments d ON e.department_id=d.id
+     ORDER BY e.id ASC");
+$total = mysqli_num_rows($employees);
+?>  
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
