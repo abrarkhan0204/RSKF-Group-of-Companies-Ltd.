@@ -1,37 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Add
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_supplier'])) {
-    $company      = mysqli_real_escape_string($conn, $_POST['company_name']);
-    $contact      = mysqli_real_escape_string($conn, $_POST['contact_person']);
-    $phone        = mysqli_real_escape_string($conn, $_POST['phone']);
-    $email        = mysqli_real_escape_string($conn, $_POST['email']);
-    $address      = mysqli_real_escape_string($conn, $_POST['address']);
-    $city         = mysqli_real_escape_string($conn, $_POST['city']);
-    $default_pass = MD5('rskf1234');
-    mysqli_query($conn, "INSERT INTO suppliers (company_name, contact_person, phone, email, `password`, address, city)
-                         VALUES ('$company','$contact','$phone','$email','$default_pass','$address','$city')");
-    header("Location: suppliers.php?success=added");
-    exit();
-}
-
-// Delete
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    mysqli_query($conn, "DELETE FROM suppliers WHERE id=$id");
-    header("Location: suppliers.php?success=deleted");
-    exit();
-}
-
-$suppliers = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY id ASC");
-$total     = mysqli_num_rows($suppliers);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -90,6 +57,41 @@ $total     = mysqli_num_rows($suppliers);
   </style>
 </head>
 <body>
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Add
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_supplier'])) {
+    $company      = mysqli_real_escape_string($conn, $_POST['company_name']);
+    $contact      = mysqli_real_escape_string($conn, $_POST['contact_person']);
+    $phone        = mysqli_real_escape_string($conn, $_POST['phone']);
+    $email        = mysqli_real_escape_string($conn, $_POST['email']);
+    $address      = mysqli_real_escape_string($conn, $_POST['address']);
+    $city         = mysqli_real_escape_string($conn, $_POST['city']);
+    $default_pass = MD5('rskf1234');
+    mysqli_query($conn, "INSERT INTO suppliers (company_name, contact_person, phone, email, `password`, address, city)
+                         VALUES ('$company','$contact','$phone','$email','$default_pass','$address','$city')");
+    header("Location: suppliers.php?success=added");
+    exit();
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    mysqli_query($conn, "DELETE FROM suppliers WHERE id=$id");
+    header("Location: suppliers.php?success=deleted");
+    exit();
+}
+
+$suppliers = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY id ASC");
+$total     = mysqli_num_rows($suppliers);
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
