@@ -1,57 +1,4 @@
-<?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-include 'db.php';
 
-// Stock Update
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_stock'])) {
-    $id          = (int)$_POST['product_id'];
-    $qty         = (int)$_POST['add_quantity'];
-    $supplier_id = (int)$_POST['supplier_id'];
-    $cost        = (float)$_POST['cost_per_unit'];
-    $date        = $_POST['purchase_date'];
-    $notes       = mysqli_real_escape_string($conn, $_POST['notes']);
-    $total_cost  = $qty * $cost;
-    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity + $qty WHERE id=$id");
-    mysqli_query($conn, "INSERT INTO purchases (supplier_id, product_id, quantity, cost_per_unit, total_cost, purchase_date, notes)
-                         VALUES ('$supplier_id','$id','$qty','$cost','$total_cost','$date','$notes')");
-    header("Location: products.php?success=stock_updated");
-    exit();
-}
-
-// Add Product
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
-    $name        = mysqli_real_escape_string($conn, $_POST['name']);
-    $category_id = (int)$_POST['category_id'];
-    $unit        = mysqli_real_escape_string($conn, $_POST['unit']);
-    $price       = (float)$_POST['price_per_unit'];
-    $stock       = (int)$_POST['stock_quantity'];
-    $reorder     = (int)$_POST['reorder_level'];
-    $description = mysqli_real_escape_string($conn, $_POST['description']);
-    mysqli_query($conn, "INSERT INTO products (name, category_id, unit, price_per_unit, stock_quantity, reorder_level, description)
-                         VALUES ('$name','$category_id','$unit','$price','$stock','$reorder','$description')");
-    header("Location: products.php?success=added");
-    exit();
-}
-
-// Delete
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    mysqli_query($conn, "DELETE FROM products WHERE id=$id");
-    header("Location: products.php?success=deleted");
-    exit();
-}
-
-$categories     = mysqli_query($conn, "SELECT * FROM categories ORDER BY name ASC");
-$suppliers_list = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY company_name ASC");
-$products       = mysqli_query($conn, "SELECT p.*, c.name as category_name
-                                        FROM products p LEFT JOIN categories c ON p.category_id=c.id
-                                        ORDER BY p.id ASC");
-$total = mysqli_num_rows($products);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,6 +88,62 @@ $total = mysqli_num_rows($products);
   </style>
 </head>
 <body>
+
+    <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+include 'db.php';
+
+// Stock Update
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_stock'])) {
+    $id          = (int)$_POST['product_id'];
+    $qty         = (int)$_POST['add_quantity'];
+    $supplier_id = (int)$_POST['supplier_id'];
+    $cost        = (float)$_POST['cost_per_unit'];
+    $date        = $_POST['purchase_date'];
+    $notes       = mysqli_real_escape_string($conn, $_POST['notes']);
+    $total_cost  = $qty * $cost;
+    mysqli_query($conn, "UPDATE products SET stock_quantity = stock_quantity + $qty WHERE id=$id");
+    mysqli_query($conn, "INSERT INTO purchases (supplier_id, product_id, quantity, cost_per_unit, total_cost, purchase_date, notes)
+                         VALUES ('$supplier_id','$id','$qty','$cost','$total_cost','$date','$notes')");
+    header("Location: products.php?success=stock_updated");
+    exit();
+}
+
+// Add Product
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_product'])) {
+    $name        = mysqli_real_escape_string($conn, $_POST['name']);
+    $category_id = (int)$_POST['category_id'];
+    $unit        = mysqli_real_escape_string($conn, $_POST['unit']);
+    $price       = (float)$_POST['price_per_unit'];
+    $stock       = (int)$_POST['stock_quantity'];
+    $reorder     = (int)$_POST['reorder_level'];
+    $description = mysqli_real_escape_string($conn, $_POST['description']);
+    mysqli_query($conn, "INSERT INTO products (name, category_id, unit, price_per_unit, stock_quantity, reorder_level, description)
+                         VALUES ('$name','$category_id','$unit','$price','$stock','$reorder','$description')");
+    header("Location: products.php?success=added");
+    exit();
+}
+
+// Delete
+if (isset($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    mysqli_query($conn, "DELETE FROM products WHERE id=$id");
+    header("Location: products.php?success=deleted");
+    exit();
+}
+
+$categories     = mysqli_query($conn, "SELECT * FROM categories ORDER BY name ASC");
+$suppliers_list = mysqli_query($conn, "SELECT * FROM suppliers ORDER BY company_name ASC");
+$products       = mysqli_query($conn, "SELECT p.*, c.name as category_name
+                                        FROM products p LEFT JOIN categories c ON p.category_id=c.id
+                                        ORDER BY p.id ASC");
+$total = mysqli_num_rows($products);
+?>
+    
 <div class="sidebar">
   <div class="logo">
     <h2>RSKF <span>Group</span> of<br>Companies Ltd.</h2>
